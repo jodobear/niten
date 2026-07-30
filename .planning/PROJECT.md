@@ -51,6 +51,8 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - [ ] Launch early to alumni and expand continuously, but open publicly only after all internal stability gates pass.
 - [ ] Capture architecture decisions, failures, operational evidence, and lessons privately from day one.
 - [ ] After stable launch, publish education that explains the philosophy, provides a reproducible quickstart, and teaches production trade-offs and safe adaptation.
+- [ ] Choose an appropriate final repository name, create the GitHub remote, and use contextual issues plus branch-based draft pull requests for implementation work.
+- [ ] Integrate the external Codex GitHub review loop: poll each pull request for review results, fix actionable defects, and preserve verification evidence before merge.
 
 ### Out of Scope
 
@@ -90,6 +92,8 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - Pyramid is the center of the relay/community stack, not the owner of all Nostr infrastructure.
 - Focused improvements should be recorded and contributed upstream where useful without expanding Pyramid into a monolith.
 - The project should be easy to clone, configure, and build for another community if the repository is later made public.
+- The local repository has no remote yet. Remote creation waits for naming research and an explicit repository-owner decision.
+- Delivery should use contextual GitHub issues and draft pull requests. An external Codex GitHub connector reviews pull requests; the implementation workflow must poll its results, address actionable findings, and re-verify before merge.
 
 ### Privacy, Portability, and Federation
 
@@ -132,6 +136,7 @@ Public opening requires all of the following:
 - **Portability:** Members retain identities, content portability, and exit; deployment must remain reproducible.
 - **Documentation:** Capture evidence from day one; publish educational material only after stable launch.
 - **Brand:** Final name and domain topology remain open research decisions.
+- **GitHub:** Repository name and owner must be chosen before remote creation; implementation uses contextual issues, draft PRs, and external Codex review feedback.
 
 ## Key Decisions
 
@@ -152,6 +157,8 @@ Public opening requires all of the following:
 | Quality-gated public launch | Reliability and safety matter more than arbitrary schedule | — Pending |
 | Defer repository publication decision until after launch | Preserve optionality while designing for reproducibility now | — Pending |
 | Research brand relationship across three territories | Working title and final relationship to Sovereign Engineering remain unresolved | — Pending |
+| Defer GitHub remote creation until naming is resolved | Avoid cementing a misleading repository identity while preserving local planning progress | — Pending |
+| Use issues, draft PRs, and external Codex review | Keep implementation contextual, reviewable, and defect-driven | — Pending |
 
 ## Open Research Questions
 
@@ -166,6 +173,7 @@ Public opening requires all of the following:
 - What VPS size, OS, container strategy, reverse proxy, database, object storage, backup destination, and monitoring stack fit the workload and budget?
 - Should services use flat subdomains, nested subdomains, paths, or protocol-aware routing?
 - Which naming territory and visual system best extend Sovereign Engineering's philosophy without becoming a generic sub-brand?
+- What repository name and GitHub owner best fit the final product name, architecture scope, and potential future publication?
 - How should later badges, Git/NIP-34, events, V4V, directories, governance, E2EE, and custom-client work be sequenced?
 - Which jurisdictional, illegal-content, data-retention, and provider-policy obligations apply before production?
 
