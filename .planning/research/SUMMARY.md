@@ -54,7 +54,7 @@ The main risks are false security promises, immature admin behavior, policy/role
 
 ## Key Findings
 
-Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [PITFALLS.md](./PITFALLS.md).
+Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [PITFALLS.md](./PITFALLS.md), [NAPPLETS.md](./NAPPLETS.md), and [SERVICE-BOUNDARIES.md](./SERVICE-BOUNDARIES.md).
 
 ### Recommended Stack
 
@@ -74,6 +74,26 @@ Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md),
 
 **Deployment topology:** one dedicated VPS; Caddy public on 80/443; SSH restricted; Pyramid and all metrics/admin/backends bound to loopback/private network; flat `relay.`, `blobs.`/`media.`, `status.`, and optionally `admin.` origins. External uptime and encrypted backup must sit outside the VPS failure domain. This is single-host recovery architecture, not high availability.
 
+#### Exact V1 Service Budget
+
+Recommended internal pilot has **7 project-managed always-on processes, 11 project-managed systemd units, 3 local public origins plus 1 external status origin, 3 runtime-writable stores, 2 Nostr-aware server processes, 1 WSS relay server, and 1 server-held event signer**. Public launch remains at 7 processes, 11 units, 3 stores, 2 Nostr-aware servers, and 1 relay; it adds only the static `best.<domain>` origin, bringing local origins to 4. The server-held signer is Pyramid's internal relay key; no recommended server holds a member or operator content-author key.
+
+| Always-on v1 process | Role | Store / Nostr boundary |
+|---|---|---|
+| `caddy.service` | TLS, WSS tunneling, static community/NIP-05/Best-of content | Operational TLS state; no Nostr parsing |
+| `pyramid.service` | Sole community relay and policy authority | Pyramid mmap/management/settings/index store; full WSS relay |
+| `blossom.service` | Public media ownership, quotas, deletion, bytes | Blob metadata/object store; Nostr-signed HTTP auth, not WSS |
+| `node-exporter.service` | Host metrics | No product store or Nostr authority |
+| `blackbox-exporter.service` | Outside-facing protocol probes | No product store or Nostr authority |
+| `prometheus.service` | Metrics/alert evaluation | Bounded TSDB; no Nostr authority |
+| `alertmanager.service` | Alert routing | Operational notification state only |
+
+Four additional managed units are two timer/oneshot pairs: backup and restore-check. Internal local origins are `relay.<domain>`, `blobs.<domain>`, and `community.<domain>`; externally hosted status is separate. The three counted stores are Pyramid, Blossom, and Prometheus. Restic is an off-host repository, while certificates, logs, and Alertmanager state remain in the recovery inventory without becoming product stores.
+
+The gated materialized aggregator adds exactly **+1 process, +1 unit, +1 store, +1 Nostr-aware component, and no origin or WSS server**. Selected later aggregation + Git + GRASP + stateless private-media gateway yields **11 processes, 15 units, 7 local origins plus 1 external status origin, 6 stores, 5 Nostr-aware server processes, 2 WSS relay servers, and still 1 server-held event signer**. A browser Napplet/Kehto runtime adds **zero operator processes, units, origins, or stores** because it is static client code on `community.<domain>`.
+
+**One-authority duplication budget:** one canonical membership/policy authority, one canonical community-event store, one canonical public-blob owner, and zero server-side member signers. Repeated parsing, event-ID/signature verification, endpoint-specific authorization checks, scoped filtering/deduplication, and disposable projections are required at trust boundaries. Duplicate membership/role tables, public relay/search truth, re-signed member content, Napplet ACL as relay authorization, or a second blob catalog are prohibited.
+
 ### Native vs Separate Capability Boundary
 
 | Capability | Recommended owner | Reason / constraint |
@@ -88,6 +108,7 @@ Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md),
 | Public federation | Direct client queries first; sidecar later | Avoid copied-content lifecycle until measured need |
 | Best-of | Signed curator/projection or hardened favorites | Manual, admin-only, preserves original event/signature |
 | Git/NIP-34 | Separate Git host + GRASP later | Git objects and Nostr collaboration have separate lifecycles |
+| Client composition/runtime | Existing clients and replaceable browser adapters; Kehto/Napplet only later | Client ACL/signing/routing is not relay membership, persistence, moderation, or operations |
 | Observability/backup | Separate operator services | Must remain useful when Pyramid is unhealthy |
 
 ### Expected Features
@@ -118,6 +139,7 @@ Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md),
 - Marmot/MLS E2EE rooms and encrypted group attachments.
 - NIP-29-aware live replica/failover.
 - Full custom client; requires documented core-job failures across composed clients plus maintenance/security ownership.
+- Napplet/Kehto production use; first eligible work is a post-stability read-only public-feed/directory experiment.
 - Public educational/cloneable release until production stability and publication decisions pass.
 
 ### Client and Signer Compatibility
@@ -132,6 +154,24 @@ Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md),
 | Nostrum or another iOS NIP-46 signer | Experimental iOS path | Alpha/reference maturity; select and test before recommending |
 
 “Supports NIP-X” is insufficient. Support requires pinned client/signer/relay triples passing login, reconnect, public publication, group invite/roles/private reads, exact outbound destination capture, search, upload/delete, and rejection/error behavior. Never recommend raw `nsec` paste when NIP-07/46/55 is available.
+
+### Napplet and Kehto Posture
+
+Napplet/Kehto is a promising **client capability-isolation model**, not a replacement for Pyramid, Blossom, or the launch companion UI. Canonical repositories and inspected pins are:
+
+| Repository | Inspected pin | Actual role |
+|---|---|---|
+| [`napplet/naps`](https://github.com/napplet/naps/tree/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24) | `5ac0490461ca6fec2f0d2e45b4835cf9bc08de24` | NAP contract/archetype registry; no runtime code |
+| [`napplet/web`](https://github.com/napplet/web/tree/03ad65b66413e5798536ef48695ffc4c2508f2c3) | `03ad65b66413e5798536ef48695ffc4c2508f2c3` | Alpha napplet-side SDK/types/shims/build/conformance tools; not a host or relay |
+| [`kehto/web`](https://github.com/kehto/web/tree/3a4d71a8f8860890cdcbf8fa25a11780fbe7a55f) | `3a4d71a8f8860890cdcbf8fa25a11780fbe7a55f` | Early-alpha browser host/runtime/reference services; integrator must supply production adapters |
+
+Use the singular lower-case `napplet` namespace; historical `napplet/napplet` and `sandwichfarm/napplet` links are stale. [NIP-5D at inspected PR head `eb45dfd…`](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md) and most needed NAPs remain draft. Current implementation drift includes an untransmitted NAP-RELAY group option, ignored publish options, no NIP-50 `search` field in `NostrFilter`, and stub-level notifications.
+
+Boundary is strict: Kehto may mediate a browser's napplet identity, capability grants, signer consent, relay selection, upload/fetch, local preferences, and intent routing. Pyramid still owns membership, invites, roles, NIP-29/42/86, NIP-05/50, moderation, deletion, persistence, search, backup, and upgrades. Blossom still owns blob persistence, ownership, quotas, deletion, abuse handling, and backup. NAP-STORAGE is disposable client KV, NAP-IDENTITY is not the alumni roster, NAP-UPLOAD is not a media server, and a Napplet ACL cannot authorize anything at the relay. Pyramid/Blossom must independently revalidate every request.
+
+Design replaceable client seams now—`PyramidRelayAdapter`, `CommunityReadModel`, `PublicOutboxAdapter`, `PublicUploadAdapter`, `NappletStateAdapter`, `ShellConfigAdapter`, `NotificationAdapter`, and `IntentCatalog`—but implement them conventionally for v1. No UI may own community authority; all writes require authoritative server confirmation, while optimistic UI remains explicitly pending and disposable.
+
+After the full stability gate, permit one isolated **read-only public feed or directory** experiment. Acceptance requires exact immutable NIP-5D/NAP/SDK/Kehto pins; verified manifest/blob/aggregate; `srcdoc` with `sandbox="allow-scripts"` and no `allow-same-origin`; only read-only identity/relay-or-outbox/resource plus non-authoritative storage/config/intent; fixed Pyramid/public-relay allowlists; no private kinds/relays, signing, upload, deletion, admin, invite, role, moderation, or NIP-05 surface; resource quotas and malicious-napplet tests; and removal with zero effect on Pyramid, Blossom, identities, or community data. Promote only if it replaces existing code or solves a measured user job better than Jumble/Flotilla plus the conventional companion UI.
 
 ### Federation and Portability
 
@@ -157,7 +197,7 @@ No candidate is cleared. Naming requires a member workshop plus domain, NIP-05 n
 
 ### Architecture Approach
 
-Use a single-host modular architecture with strict trust and state boundaries. Caddy is the only public listener. Pyramid alone writes member/group/relay state. Blossom alone writes blob metadata/files. Any aggregator owns only provenance/checkpoints and sends unchanged events through WSS. Curator owns signed selection decisions. Static web owns no authority. Backup and monitoring use their own identities and retention. Separate Unix users, writable paths, credentials, quotas, logs, and restore procedures make services replaceable without pretending a single VPS is highly available.
+Use a single-host modular architecture with strict trust and state boundaries. Caddy is the only public listener. Pyramid alone writes member/group/relay state. Blossom alone writes blob metadata/files. Any aggregator owns only provenance/checkpoints and sends unchanged events through WSS. A reviewed curation manifest owns editorial inclusion; a static projector verifies original events and never re-signs member content. Static web and browser runtimes own no authority. Backup and monitoring use their own identities and retention. Separate Unix users, writable paths, credentials, quotas, logs, and restore procedures make services replaceable without pretending a single VPS is highly available.
 
 **Major components:**
 
@@ -165,7 +205,7 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 2. **Pyramid core** — membership hierarchy, relay policy, NIP-29, authentication, administration, moderation, event/search state.
 3. **Thin onboarding/admin web** — client/signer discovery, roster/role UX, privacy language, NIP-05/Best-of/status navigation; signed calls, no key custody.
 4. **Standalone Blossom** — public blobs, signed upload/delete, quotas, reports, quarantine, retention, backup.
-5. **Federation/curation sidecars** — optional bounded public-event import and admin-signed manual projection; no private payloads or signature rewriting.
+5. **Federation/static curation** — optional bounded public-event importer only after its gate; immutable Best-of artifact served by Caddy; no always-on curator, private payloads, or signature rewriting.
 6. **Operations plane** — systemd, journald, Prometheus/exporters/Alertmanager, restic, redacted evidence and runbooks.
 7. **Existing clients/signers** — portable user experience and signing boundary; private keys stay client-side.
 
@@ -181,6 +221,7 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 - A successful backup command is **not** recovery evidence.
 - HTTPS homepage health is **not** protocol readiness.
 - Infrastructure availability alone will **not** create weekly participation; pilot facilitation and conversation quality are product work.
+- Napplet/Kehto is **not** a relay, production client, server policy layer, NIP-50 implementation, Blossom service, or operations replacement.
 
 ### Critical Pitfalls
 
@@ -206,6 +247,10 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 - Require exact pinned client/signer compatibility evidence and private-destination packet/event capture.
 - Define success gates for adoption and conversation quality alongside availability; no custom-client scope without failed-job evidence.
 - Record final name, domain layout, GitHub owner/repository name, provider, jurisdiction, and publication strategy as explicit decision records before dependent work.
+- Make the exact v1 count a requirements budget: 7 always-on processes, 11 units, 3 pilot/4 launch local origins, 3 stores, 2 Nostr-aware servers, 1 WSS relay, and no hosted member signer; any addition must declare its count and authority delta.
+- Enforce the one-authority budget: Pyramid owns community policy/events; Blossom owns public blobs; client/runtime state is disposable and cannot become roster, search, moderation, or deletion truth.
+- Require every client-facing feature to consume replaceable adapters and authoritative server APIs. UI writes succeed only after server confirmation.
+- Exclude Napplet/Kehto from v1 and public-launch gates. Preserve a post-stability, removable, read-only public feed/directory experiment with the explicit sandbox/allowlist/no-write acceptance gate.
 
 ## Implications for Roadmap
 
@@ -218,7 +263,7 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 
 ### Phase 1: Reproducible Hardened Foundation
 **Rationale:** No application behavior is trustworthy until release provenance, secrets, ingress, and rollback boundaries exist.  
-**Delivers:** dedicated VPS baseline; Debian/systemd/nftables/Caddy; pinned Pyramid build and checksum; narrow fork/patch ledger; `0600` settings fix; loopback origins; secret handling; baseline limits/monitoring; disposable staging deploy.  
+**Delivers:** dedicated VPS baseline; Debian/systemd/nftables/Caddy; pinned Pyramid build and checksum; narrow fork/patch ledger; `0600` settings fix; loopback origins; secret handling; baseline limits/monitoring; disposable staging deploy; declared 7-process/11-unit/3-store inventory and per-component authority contract.
 **Addresses:** stable core relay prerequisite, under-$100 cost baseline, two-operator access.  
 **Avoids:** mutable updates, public origin ports, secret leakage, SSRF/egress proxy, false HTTPS readiness.  
 **Research:** **Required**—Pyramid packaging, fork/upstream strategy, safe systemd sandbox, provider benchmark.
@@ -232,7 +277,7 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 
 ### Phase 3: Core Conversation Vertical Slice
 **Rationale:** Prove smallest end-to-end community loop before adding files or federation.  
-**Delivers:** public member-write relay, anonymous read, public town square, access-controlled rooms, notes/replies/reactions/long-form, NIP-50 search, onboarding/status site, Nostrord baseline, Flotilla/Jumble pilots, signer matrix, exact destination leak tests, active-state deletion.  
+**Delivers:** public member-write relay, anonymous read, public town square, access-controlled rooms, notes/replies/reactions/long-form, NIP-50 search, onboarding/status site, Nostrord baseline, Flotilla/Jumble pilots, signer matrix, exact destination leak tests, active-state deletion, and replaceable client adapters whose state is non-authoritative.
 **Addresses:** weekly conversation table stakes and BYOK compatibility.  
 **Avoids:** NIP-checkbox support, NIP-29-as-E2EE, multi-relay leakage, search shadow copies.  
 **Research:** **Required**—client/signer behavior is low-confidence and NIP-29 is draft.
@@ -267,10 +312,10 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 
 ### Phase 8: Post-Launch Expansion and Education
 **Rationale:** Extensions should follow demonstrated conversation habit and stable operations.  
-**Delivers:** badges/community map, events/V4V/governance, selected NIP-34/GRASP, optional LiveKit, sanitized educational site/NIP-23 series/quickstart, publication decision. Separate future research tracks cover replica, Marmot/MLS E2EE, encrypted group media, and custom client.  
+**Delivers:** badges/community map, events/V4V/governance, selected NIP-34/GRASP, optional LiveKit, sanitized educational site/NIP-23 series/quickstart, publication decision, and one removable read-only public-feed/directory Napplet/Kehto experiment after stability. Separate future research tracks cover replica, Marmot/MLS E2EE, encrypted group media, and custom client.
 **Addresses:** differentiators and reusable-reference objective.  
-**Avoids:** empty feature surfaces, Pyramid monolith, premature code publication, unaudited crypto.  
-**Research:** **Required** for E2EE/private media/replica/custom client; ordinary educational publishing can use established patterns.
+**Avoids:** empty feature surfaces, Pyramid monolith, premature code publication, unaudited crypto, and alpha runtime productization on the launch critical path.
+**Research:** **Required** for E2EE/private media/replica/custom client and Napplet/Kehto experiment; ordinary educational publishing can use established patterns.
 
 ### Phase Ordering Rationale
 
@@ -324,6 +369,9 @@ Public opening requires retained evidence of all of the following:
 - `hzrd149/blossom-server` v6.2.0: strong modular target, but dynamic Pyramid roster and aggregate quota bridge do not exist as verified turnkey functionality.
 - Route96 v0.7.0: richer policies but pre-1.0 and MariaDB-heavy; not default.
 - NIP-29, NIP-34, Marmot/MLS paths: draft/optional or evolving; re-check exact specifications and clients per phase.
+- NIP-5D and most needed NAPs: draft; exact proposal heads may move and must be repinned together.
+- `napplet/web` at `03ad65b…`: alpha SDK with known relay/search contract drift; not a host runtime.
+- `kehto/web` at `3a4d71a…`: early-alpha reference runtime with no-op/in-memory starting adapters and incomplete notification/security/production integration.
 - Pyramid NIP-86 coverage, live mmap snapshot consistency, complete deletion semantics, and readiness/metrics endpoints: incomplete or unverified.
 
 ### Gaps to Address
@@ -339,6 +387,7 @@ Public opening requires retained evidence of all of the following:
 - Client/signer triples, auto-update behavior, exact group destinations, notifications, and deletion flows.
 - Roster/data reconciliation for badges/directory and Best-of authorization mechanism.
 - Final name, GitHub owner/repository identity, and post-launch publication model.
+- Versioned replaceable adapter contracts and the post-stability Napplet removal/security/utility acceptance evidence.
 
 ## Sources
 
@@ -347,6 +396,7 @@ Public opening requires retained evidence of all of the following:
 - [Pyramid repository](https://github.com/fiatjaf/pyramid), [v1.3.2](https://github.com/fiatjaf/pyramid/releases/tag/v1.3.2), [settings/permission source](https://github.com/fiatjaf/pyramid/blob/v1.3.2/global/settings.go#L465-L475), [private group query filter](https://github.com/fiatjaf/pyramid/blob/v1.3.2/groups/queries.go#L63-L97), [raw sync target](https://github.com/fiatjaf/pyramid/blob/v1.3.2/sync.go#L55-L80), and [optional feature registration](https://github.com/fiatjaf/pyramid/blob/v1.3.2/main.go#L487-L548).
 - Official Nostr specifications: [NIP-05](https://github.com/nostr-protocol/nips/blob/master/05.md), [NIP-09](https://github.com/nostr-protocol/nips/blob/master/09.md), [NIP-17](https://github.com/nostr-protocol/nips/blob/master/17.md), [NIP-29](https://github.com/nostr-protocol/nips/blob/master/29.md), [NIP-34](https://github.com/nostr-protocol/nips/blob/master/34.md), [NIP-42](https://github.com/nostr-protocol/nips/blob/master/42.md), [NIP-46](https://github.com/nostr-protocol/nips/blob/master/46.md), [NIP-50](https://github.com/nostr-protocol/nips/blob/master/50.md), [NIP-55](https://github.com/nostr-protocol/nips/blob/master/55.md), [NIP-62](https://github.com/nostr-protocol/nips/blob/master/62.md), [NIP-65](https://github.com/nostr-protocol/nips/blob/master/65.md), [NIP-70](https://github.com/nostr-protocol/nips/blob/master/70.md), [NIP-77](https://github.com/nostr-protocol/nips/blob/master/77.md), [NIP-86](https://github.com/nostr-protocol/nips/blob/master/86.md), and [NIP-98](https://github.com/nostr-protocol/nips/blob/master/98.md).
 - [Blossom protocol](https://github.com/hzrd149/blossom), [Blossom Server](https://github.com/hzrd149/blossom-server), and [Marmot protocol](https://github.com/parres-hq/marmot).
+- Napplet/Kehto: [`napplet/naps` at `5ac0490…`](https://github.com/napplet/naps/tree/5ac0490461ca6fec2f0d2e45b4835cf9bc08de24), [`napplet/web` at `03ad65b…`](https://github.com/napplet/web/tree/03ad65b66413e5798536ef48695ffc4c2508f2c3), [`kehto/web` at `3a4d71a…`](https://github.com/kehto/web/tree/3a4d71a8f8860890cdcbf8fa25a11780fbe7a55f), and [NIP-5D inspected head `eb45dfd…`](https://github.com/nostr-protocol/nips/blob/eb45dfd7335b7f88cb53781984c553581d2b4c34/5D.md).
 - Current client/signer sources: [Flotilla](https://gitea.coracle.social/coracle/flotilla), [Nostrord](https://github.com/nostrord/nostrord), [Jumble](https://github.com/CodyTseng/jumble), [nos2x](https://github.com/fiatjaf/nos2x), [nos2x-fox](https://github.com/diegogurpegui/nos2x-fox), [Amber](https://github.com/greenart7c3/Amber), and [Nostrum](https://github.com/nostr-connect/nostrum).
 
 ### Operations and Cost Sources
