@@ -181,17 +181,104 @@ A v1 requirement is complete only when:
 
 ## Traceability
 
-Roadmap creation will map every v1 requirement to exactly one phase.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PILOT-01 through MET-03, including UI-01 through UI-07 | Pending roadmap mapping | Pending |
+| PILOT-01 | Phase 1 | Pending |
+| PILOT-02 | Phase 1 | Pending |
+| PILOT-03 | Phase 1 | Pending |
+| PILOT-04 | Phase 1 | Pending |
+| PILOT-05 | Phase 1 | Pending |
+| PILOT-06 | Phase 1 | Pending |
+| PILOT-07 | Phase 1 | Pending |
+| PILOT-08 | Phase 1 | Pending |
+| GOV-01 | Phase 2 | Pending |
+| GOV-02 | Phase 2 | Pending |
+| GOV-03 | Phase 2 | Pending |
+| GOV-04 | Phase 2 | Pending |
+| GOV-05 | Phase 2 | Pending |
+| GOV-06 | Phase 2 | Pending |
+| SEC-01 | Phase 2 | Pending |
+| SEC-02 | Phase 2 | Pending |
+| SEC-03 | Phase 2 | Pending |
+| SEC-04 | Phase 2 | Pending |
+| SEC-05 | Phase 2 | Pending |
+| SEC-06 | Phase 2 | Pending |
+| SEC-07 | Phase 2 | Pending |
+| MEM-01 | Phase 2 | Pending |
+| MEM-02 | Phase 2 | Pending |
+| MEM-03 | Phase 2 | Pending |
+| MEM-04 | Phase 2 | Pending |
+| MEM-05 | Phase 2 | Pending |
+| MEM-06 | Phase 2 | Pending |
+| MEM-07 | Phase 2 | Pending |
+| CONV-01 | Phase 3 | Pending |
+| CONV-02 | Phase 3 | Pending |
+| CONV-03 | Phase 3 | Pending |
+| CONV-04 | Phase 3 | Pending |
+| CONV-05 | Phase 3 | Pending |
+| CONV-06 | Phase 3 | Pending |
+| CONV-07 | Phase 3 | Pending |
+| CONV-08 | Phase 3 | Pending |
+| CONV-09 | Phase 3 | Pending |
+| CONV-10 | Phase 3 | Pending |
+| CONV-11 | Phase 3 | Pending |
+| CLNT-01 | Phase 3 | Pending |
+| CLNT-02 | Phase 3 | Pending |
+| CLNT-03 | Phase 3 | Pending |
+| CLNT-04 | Phase 3 | Pending |
+| CLNT-05 | Phase 3 | Pending |
+| UI-01 | Phase 3 | Pending |
+| UI-02 | Phase 3 | Pending |
+| UI-03 | Phase 3 | Pending |
+| UI-04 | Phase 3 | Pending |
+| UI-05 | Phase 3 | Pending |
+| UI-06 | Phase 3 | Pending |
+| UI-07 | Phase 3 | Pending |
+| MEDIA-01 | Phase 4 | Pending |
+| MEDIA-02 | Phase 4 | Pending |
+| MEDIA-03 | Phase 4 | Pending |
+| MEDIA-04 | Phase 4 | Pending |
+| MEDIA-05 | Phase 4 | Pending |
+| MEDIA-06 | Phase 4 | Pending |
+| MEDIA-07 | Phase 4 | Pending |
+| FED-01 | Phase 3 | Pending |
+| FED-02 | Phase 4 | Pending |
+| FED-03 | Phase 4 | Pending |
+| FED-04 | Phase 4 | Pending |
+| FED-05 | Phase 4 | Pending |
+| OPS-01 | Phase 2 | Pending |
+| OPS-02 | Phase 4 | Pending |
+| OPS-03 | Phase 4 | Pending |
+| OPS-04 | Phase 4 | Pending |
+| OPS-05 | Phase 4 | Pending |
+| OPS-06 | Phase 4 | Pending |
+| OPS-07 | Phase 4 | Pending |
+| OPS-08 | Phase 4 | Pending |
+| OPS-09 | Phase 4 | Pending |
+| OPS-10 | Phase 4 | Pending |
+| OPS-11 | Phase 4 | Pending |
+| OPS-12 | Phase 4 | Pending |
+| EXT-01 | Phase 5 | Pending |
+| EXT-02 | Phase 5 | Pending |
+| EXT-03 | Phase 5 | Pending |
+| EXT-04 | Phase 5 | Pending |
+| EXT-05 | Phase 5 | Pending |
+| DOC-01 | Phase 1 | Pending |
+| DOC-02 | Phase 5 | Pending |
+| DOC-03 | Phase 5 | Pending |
+| DOC-04 | Phase 5 | Pending |
+| DOC-05 | Phase 5 | Pending |
+| DOC-06 | Phase 2 | Pending |
+| MET-01 | Phase 5 | Pending |
+| MET-02 | Phase 5 | Pending |
+| MET-03 | Phase 5 | Pending |
 
 **Coverage:**
 - v1 requirements: 89 total
-- Mapped to phases: 0
-- Unmapped: 89
+- Mapped to phases: 89
+- Unmapped: 0
+- Duplicate mappings: 0
 
 ---
 *Requirements defined: 2026-07-30*
-*Last updated: 2026-07-31 after stock-Pyramid discovery-pilot decision*
+*Last updated: 2026-07-31 after roadmap creation*
