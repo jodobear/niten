@@ -9,7 +9,7 @@
 
 This is not a conventional community application and should not be planned as one. It is a small sovereign network composed from a relay/community authority, existing Nostr clients and external signers, a separate media service, and thin discovery/administration surfaces. The canonical relay is [`fiatjaf/pyramid`](https://github.com/fiatjaf/pyramid), not the older `github-tijlxyz/khatru-pyramid`. Research inspected Pyramid **v1.3.2**, commit `e12e81641bfe6cacc6dd246e9433d602c1240e66`, released 2026-07-29. It natively provides the membership hierarchy, public/member relay paths, NIP-29 groups, NIP-42 authentication, NIP-86 administration subset, NIP-05, NIP-50 search, moderation, and memory-mapped `mmm` event storage needed for the core. It is also young, fast-moving, and not production-safe unchanged: its secret-bearing `settings.json` is saved with mode `0644`, and its browser admin session design has long-lived replay and web-session weaknesses. Both are pre-pilot blockers, not later hardening tasks.
 
-Recommended v1 is deliberately modular: native Pyramid binary under `systemd` on Debian 13.6, loopback-only behind Caddy 2.11.4; standalone Blossom on an isolated origin after its roster/quota bridge is proven; restic to an independent S3-compatible backup target; journald plus Prometheus/exporters/Alertmanager; static onboarding/status/public-discovery surfaces; existing clients and member-controlled signers. Nostrord should be the pinned NIP-29 reference/compatibility client, Flotilla the preferred alumni workspace only after it passes the complete privacy and signer matrix, and Jumble the public chronological feed/long-form front door. This resolves a source conflict: feature research favored Flotilla as default UX, while stack research favored Nostrord as the launch pilot. They serve different jobs. Do not self-host every client or build a custom client before pilot evidence.
+Recommended v1 is deliberately modular: native Pyramid binary under `systemd` on Debian 13.6, loopback-only behind Caddy 2.11.4; standalone Blossom on an isolated origin after its roster/quota bridge is proven; restic to an independent S3-compatible backup target; journald plus Prometheus/exporters/Alertmanager; static onboarding/status/public-discovery surfaces; existing clients and member-controlled signers. Nostrord should be the pinned NIP-29 reference/compatibility client, Flotilla the preferred alumni workspace only after it passes the complete privacy and signer matrix, and Jumble the public chronological feed/long-form front door. This resolves a source conflict: feature research favored Flotilla as default UX, while stack research favored Nostrord as the launch pilot. They serve different jobs. A coherent hosted UI is feasible without adding a daemon, database, or Nostr authority: Caddy can serve pinned static clients on isolated origins. The recommended sequence is a branded portal first, a pinned Jumble feed trial after the core pilot, then a narrow web-only Flotilla hardening fork if measured workspace needs justify its maintenance. Do not self-host every client or build a custom client before pilot evidence.
 
 The main risks are false security promises, immature admin behavior, policy/role mismatch, deletion resurrection, private-event routing leaks, unbounded public media, and backups that cannot restore coherent state. NIP-29 `private` means relay-enforced access control—not E2EE—and ordinary multi-relay clients can still misroute plaintext. Private-room attachments must therefore remain disabled for sensitive content until an audited encrypted-group and encrypted-media design exists. A single 4-vCPU/8-GB/160-GB VPS plus offsite backup is feasible below US$100/month: base estimates are roughly $30–70, while a conservative all-in estimate with contingency is $61–91. The margin is narrow enough that actual media, egress, backup, and restore measurements are release gates.
 
@@ -54,7 +54,7 @@ The main risks are false security promises, immature admin behavior, policy/role
 
 ## Key Findings
 
-Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [PITFALLS.md](./PITFALLS.md), [NAPPLETS.md](./NAPPLETS.md), and [SERVICE-BOUNDARIES.md](./SERVICE-BOUNDARIES.md).
+Detailed evidence lives in [STACK.md](./STACK.md), [FEATURES.md](./FEATURES.md), [ARCHITECTURE.md](./ARCHITECTURE.md), [PITFALLS.md](./PITFALLS.md), [NAPPLETS.md](./NAPPLETS.md), [SERVICE-BOUNDARIES.md](./SERVICE-BOUNDARIES.md), [UI-CANDIDATES.md](./UI-CANDIDATES.md), [CLIENT-HOSTING.md](./CLIENT-HOSTING.md), and [UI-ADOPTION.md](./UI-ADOPTION.md).
 
 ### Recommended Stack
 
@@ -155,6 +155,27 @@ The gated materialized aggregator adds exactly **+1 process, +1 unit, +1 store, 
 
 “Supports NIP-X” is insufficient. Support requires pinned client/signer/relay triples passing login, reconnect, public publication, group invite/roles/private reads, exact outbound destination capture, search, upload/delete, and rejection/error behavior. Never recommend raw `nsec` paste when NIP-07/46/55 is available.
 
+### Hosted UI Adoption
+
+No inspected open-source client closes the entire product requirement unchanged. The viable path is composition first and consolidation only after live evidence:
+
+| Stage | Surface | Candidate | Host delta | Ownership / risk |
+|---|---|---|---|---|
+| Internal pilot | `community.<domain>` | Thin branded portal plus deep links | No additional origin beyond the planned portal; +0 process/store/Nostr server | Low; 1–2 engineer-weeks planning estimate |
+| Post-pilot feed trial | `feed.<domain>` | Pinned Jumble community-mode static build | +1 origin; +0 process/unit/store/Nostr server | Low/medium; 3–6 engineer-weeks including hardening and acceptance |
+| Coherent workspace | `app.<domain>` or `rooms.<domain>` | Narrow web-only Flotilla fork | +1 origin; +0 process/unit/store/Nostr server | High; 2–4 engineer-months plus continuous upstream review |
+| Evidence-gated v2 | Same primary app origin | Full custom client | +1 origin; +0 server daemon for static web, but four release lanes if web/native/desktop | Very high; 18–36 engineer-months cross-platform |
+
+The effort estimates assume one experienced frontend/Nostr engineer and include the security, signer, relay-routing, PWA, compatibility, and rollback work that makes a hosted build production-worthy. They are planning ranges, not vendor facts.
+
+**Flotilla is the closest unified foundation.** Its platform mode, branding, NIP-29 administration, NIP-42, NIP-50, Blossom, and NIP-07/46/55 coverage align with Pyramid. It is not safe to deploy unchanged: the researched release loads upstream Plausible analytics, calls hard-coded Coracle services, exposes unrelated hosting/login surfaces, inherits broad external defaults, and lacks verified `All`, `Best of`, NIP-23, NIP-58, and general-file flows. A production deployment is therefore a small, maintained hardening fork unless upstream makes those dependencies removable by configuration.
+
+**Jumble is the easiest first self-hosted experiment.** It provides a strong public chronological feed, article reading, search, Blossom, NIP-05, and NIP-07/46 as a static web app. It is not a NIP-29 workspace and must never become membership or moderation authority. **Nostrord remains the independent NIP-29 correctness and fallback client**, not the primary branded shell. Coracle, noStrudel, and Snort are useful implementation references; Obelisk is currently blocked by licensing and documented privacy/safety defects; The Wired is excluded because its bundled backend would duplicate Pyramid, Blossom, search, and policy authority.
+
+Each client must use its own origin. Do not iframe clients or mount independent apps under paths on one origin: signer permissions, service workers, storage, CSP, and rollback become coupled. Shared design tokens, terminology, top-level navigation, canonical `nprofile`/`nevent`/`naddr`/group deep links, and consistent privacy language provide coherence without shared secrets or shadow state.
+
+The architecture score for the recommended sequence—portal now, one static hosted client, bounded fork only on evidence—is **8.5/10**. It reaches 10/10 only after: (1) an analytics-free configuration-only upstream mode, (2) reproducible pinned builds with checksums/SBOM/provenance and a security rebuild drill, (3) the full 180-cell client/signer/flow matrix plus hosting checks, (4) leak-free standard deep links and endpoint adapters, and (5) an eight-week trial proving the hosted client completes at least 90% of measured weekly jobs while remaining removable.
+
 ### Napplet and Kehto Posture
 
 Napplet/Kehto is a promising **client capability-isolation model**, not a replacement for Pyramid, Blossom, or the launch companion UI. Canonical repositories and inspected pins are:
@@ -245,6 +266,9 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 - Define public-event aggregation as an experience requirement, not necessarily copied storage; direct reads satisfy v1 if performance and provenance pass.
 - Require standalone media policy features before calling storage general-purpose: membership sync, aggregate quota, MIME/quarantine, abuse handling, deletion, backup, and capacity controls.
 - Require exact pinned client/signer compatibility evidence and private-destination packet/event capture.
+- Require the v1 portal to provide coherent onboarding, device/signer selection, privacy/status guidance, authoritative directory/badge/Best-of projections, and canonical deep links without retaining signer or authorization state.
+- Permit one pinned static hosted-client trial after the core pilot. Require a separate origin, immutable artifact, endpoint allowlist, CSP, SBOM, signer/routing tests, PWA rollback, and zero new server authority.
+- Permit a narrow web-only client fork only after measured repeated workflow failure, no timely upstream/configuration fix, and two maintainers accepting a 12-month maintenance budget. Keep custom client scope behind the existing v2 evidence gate.
 - Define success gates for adoption and conversation quality alongside availability; no custom-client scope without failed-job evidence.
 - Record final name, domain layout, GitHub owner/repository name, provider, jurisdiction, and publication strategy as explicit decision records before dependent work.
 - Make the exact v1 count a requirements budget: 7 always-on processes, 11 units, 3 pilot/4 launch local origins, 3 stores, 2 Nostr-aware servers, 1 WSS relay, and no hosted member signer; any addition must declare its count and authority delta.
@@ -277,7 +301,7 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 
 ### Phase 3: Core Conversation Vertical Slice
 **Rationale:** Prove smallest end-to-end community loop before adding files or federation.  
-**Delivers:** public member-write relay, anonymous read, public town square, access-controlled rooms, notes/replies/reactions/long-form, NIP-50 search, onboarding/status site, Nostrord baseline, Flotilla/Jumble pilots, signer matrix, exact destination leak tests, active-state deletion, and replaceable client adapters whose state is non-authoritative.
+**Delivers:** public member-write relay, anonymous read, public town square, access-controlled rooms, notes/replies/reactions/long-form, NIP-50 search, coherent branded onboarding/status portal, canonical client deep links, Nostrord baseline, Flotilla/Jumble bake-off builds, signer matrix, exact destination leak tests, active-state deletion, and replaceable client adapters whose state is non-authoritative.
 **Addresses:** weekly conversation table stakes and BYOK compatibility.  
 **Avoids:** NIP-checkbox support, NIP-29-as-E2EE, multi-relay leakage, search shadow copies.  
 **Research:** **Required**—client/signer behavior is low-confidence and NIP-29 is draft.
@@ -305,14 +329,14 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 
 ### Phase 7: Thirty-Day Alumni Pilot and Public Launch Gate
 **Rationale:** Production-shaped evidence—not elapsed time—determines readiness.  
-**Delivers:** staged cohort expansion; facilitation rituals; adoption/quality feedback; 500-WebSocket and 20-writes/s load evidence; media pressure test; compatibility matrix; security review/threat model; full restore and two-operator handover; actual cost forecast; zero unresolved critical/high findings.  
+**Delivers:** staged cohort expansion; facilitation rituals; adoption/quality feedback; 500-WebSocket and 20-writes/s load evidence; media pressure test; 180-cell client/signer/flow compatibility matrix; hosted-client selection evidence; security review/threat model; full restore and two-operator handover; actual cost forecast; zero unresolved critical/high findings.  
 **Addresses:** 80 onboarded/40 weekly-active direction, conversation quality, public-launch confidence.  
 **Avoids:** empty technically-correct network, custom-client reflex, calendar-driven launch.  
 **Research:** standard pilot practice; thresholds must be fixed before observation.
 
 ### Phase 8: Post-Launch Expansion and Education
 **Rationale:** Extensions should follow demonstrated conversation habit and stable operations.  
-**Delivers:** badges/community map, events/V4V/governance, selected NIP-34/GRASP, optional LiveKit, sanitized educational site/NIP-23 series/quickstart, publication decision, and one removable read-only public-feed/directory Napplet/Kehto experiment after stability. Separate future research tracks cover replica, Marmot/MLS E2EE, encrypted group media, and custom client.
+**Delivers:** pinned static Jumble public-feed trial; evidence-gated web-only Flotilla hardening fork and workspace trial; badges/community map, events/V4V/governance, selected NIP-34/GRASP, optional LiveKit, sanitized educational site/NIP-23 series/quickstart, publication decision, and one removable read-only public-feed/directory Napplet/Kehto experiment after stability. Separate future research tracks cover replica, Marmot/MLS E2EE, encrypted group media, and custom client.
 **Addresses:** differentiators and reusable-reference objective.  
 **Avoids:** empty feature surfaces, Pyramid monolith, premature code publication, unaudited crypto, and alpha runtime productization on the launch critical path.
 **Research:** **Required** for E2EE/private media/replica/custom client and Napplet/Kehto experiment; ordinary educational publishing can use established patterns.
