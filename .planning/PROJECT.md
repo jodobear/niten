@@ -12,6 +12,14 @@ The community should become the alumni's default place for broad professional, t
 
 Give Sovereign Engineering alumni a reliable, high-signal online town square they choose to use every week without surrendering identity, keys, portability, or exit.
 
+## Implementation Starting Point
+
+The first implementation milestone is a **bounded stock-Pyramid discovery pilot**, not the full target architecture. Deploy an exact pinned upstream Pyramid build without source modifications, place it behind the minimum safe operating envelope, and let a small named cohort of testing alumni exercise Pyramid groups and communities through existing clients and member-controlled signers.
+
+This pilot exists to learn what Pyramid and today's clients actually deliver. It must capture executable compatibility results, missing workflows, confusing behavior, operational failures, and participant feedback before this project chooses hosted UI, standalone media, federation, curation, companion services, or Pyramid patches. Minimal host hardening, TLS, process supervision, restricted administration, backups, logs, and rollback are prerequisites for live testing; they are not product expansion.
+
+Napplet-style hosted headless community applets are a plausible separate product direction. They are wholly outside this project's implementation and roadmap. This project may preserve general lessons about replaceable, non-authoritative clients, but it will not design, prototype, or schedule a Napplet runtime.
+
 ## Business Context
 
 - **Community:** Approximately 100 Sovereign Engineering alumni plus admin-invited friends and a public readership
@@ -27,7 +35,12 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 
 ### Active
 
-- [ ] Deploy a stable Pyramid relay as the community's central relay component on a fresh, dedicated VPS.
+- [ ] Deploy an exact pinned, source-unmodified upstream Pyramid build as a bounded discovery pilot on a fresh, dedicated VPS.
+- [ ] Put the discovery pilot behind a minimal safe envelope: Caddy/TLS, loopback Pyramid listener, systemd supervision, least-privilege state permissions, restricted operator administration, bounded logs, backup, and rollback.
+- [ ] Onboard a small named cohort of testing alumni using existing Nostr clients and member-controlled signers; do not build or self-host a community client for the discovery pilot.
+- [ ] Exercise stock Pyramid membership, invitations, public/restricted groups, roles, NIP-42, search, publishing, deletion, reconnect, and supported client/signer behavior, recording pass/fail evidence and participant feedback.
+- [ ] Use discovery evidence to choose the next implementation milestone; standalone Blossom, hosted UI, federation, curation, patches, and other companion services are not assumed before that review.
+- [ ] After discovery, evolve the proven baseline toward a stable Pyramid relay as the community's central relay component.
 - [ ] Keep the system modular and Unix-like: Pyramid owns only the relay/community functions it supports well; separate services own media, Git, web, observability, and other concerns.
 - [ ] Allow approved alumni and admin-invited friends to publish while the public can read public content.
 - [ ] Distinguish alumni, invited-friend, and administrator roles; only administrators can invite friends.
@@ -66,7 +79,7 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - Public release before internal stability evidence exists — no calendar deadline overrides acceptance gates.
 - Public release of the live deployment repository before launch — publication strategy will be decided after the system is stable, while portability is preserved from day one.
 - Public plaintext attachments for private rooms — private media must be encrypted or access-controlled.
-- Napplet/Kehto runtime integration in the current roadmap — use the Pyramid relay method with existing clients and conventional thin web surfaces; preserve only the architectural learning that UI must remain replaceable and non-authoritative.
+- Napplet/Kehto runtime integration, hosted headless community applets, or a Napplet architecture prototype — this is a separate possible product direction and will not enter this project's roadmap; preserve only the general learning that UI must remain replaceable and non-authoritative.
 
 ## Context
 
@@ -76,7 +89,7 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - The community is broad rather than topic-restricted. Freedom tech is central to its identity, but alumni should also use it for professional, philosophical, and social conversation.
 - Alumni and admin-invited friends may publish. Friends receive a distinct role and can only be invited by administrators.
 - The intended public experience combines a full chronological public member feed with a curated "Best of" surface designed to create genuine interest and FOMO through conversation quality rather than artificial engagement mechanics.
-- Initial release includes relay access, invitations, public notes and long-form posts, replies and reactions, public and access-controlled rooms, general-purpose Blossom storage, signing compatibility, manual curation, moderation, observability, backup/restore, and a minimal discovery/onboarding/status website.
+- The discovery pilot includes only stock Pyramid capabilities, existing clients/signers, and the minimum safe operating envelope needed for a small live cohort. The later production release may include relay access, invitations, public notes and long-form posts, replies and reactions, public and access-controlled rooms, general-purpose Blossom storage, signing compatibility, manual curation, moderation, observability, backup/restore, and a minimal discovery/onboarding/status website after evidence-based planning.
 - Continuous releases later add badges, richer Git/NIP-34 collaboration, V4V tooling, events, directories, governance, E2EE rooms, stronger discovery, and potentially a custom client.
 
 ### Sovereign Engineering Philosophy and Aesthetics
@@ -92,11 +105,12 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - Deployment target is a fresh, dedicated VPS from a private provider. Exact provider region, OS, compute, storage, backup destination, and network topology remain research and inspection tasks.
 - The likely topology uses flat per-service subdomains, but research must compare this with client compatibility, TLS, authentication, isolation, and operational simplicity before hostnames are fixed.
 - Pyramid is the center of the relay/community stack, not the owner of all Nostr infrastructure.
+- Start with Pyramid alone plus its minimum safe host envelope. Add no companion product service until live stock behavior demonstrates a requirement.
 - Focused improvements should be recorded and contributed upstream where useful without expanding Pyramid into a monolith.
 - The project should be easy to clone, configure, and build for another community if the repository is later made public.
 - The local repository has no remote yet. Remote creation waits for naming research and an explicit repository-owner decision.
 - Delivery should use contextual GitHub issues and draft pull requests. An external Codex GitHub connector reviews pull requests; the implementation workflow must poll its results, address actionable findings, and re-verify before merge.
-- Napplet research confirmed that NAP/Kehto is a client-side capability-composition model, not a replacement for Pyramid's server authority. It is deferred; current delivery uses Pyramid, existing Nostr clients, and narrowly scoped companion surfaces.
+- Napplet research confirmed that NAP/Kehto is a client-side capability-composition model, not a replacement for Pyramid's server authority. A hosted headless-applet architecture is out of scope for this project and requires a separate future initiative if pursued.
 
 ### Privacy, Portability, and Federation
 
@@ -145,13 +159,16 @@ Public opening requires all of the following:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Begin with a stock-Pyramid discovery pilot | Live use by a small technical cohort will reveal actual Pyramid/client capability and friction before the project owns more software | ✓ Confirmed 2026-07-31 |
+| Keep the discovery pilot source-unmodified | Establish an upstream baseline and separate product gaps from local patches; use host-level safeguards for bounded live testing | ✓ Confirmed 2026-07-31 |
+| Defer all companion product services until discovery review | Avoid designing Blossom, hosted UI, federation, curation, or adapters from untested assumptions | ✓ Confirmed 2026-07-31 |
 | Use Pyramid as center of a modular stack | Demonstrate Pyramid well while keeping each service focused and replaceable | — Pending |
 | Alumni and admin-invited friends may publish | Preserve trusted community growth while welcoming selected friends | — Pending |
 | Only administrators invite friends | Keep admission accountable during early operation | — Pending |
 | Combine chronological public feed with curated highlights | Preserve transparency while showcasing exceptional signal | — Pending |
 | Ship access-controlled rooms before E2EE rooms | Deliver useful private spaces while researching protocol/client constraints | — Pending |
 | Bring your own key; no hosted bunker | Preserve member key custody and reduce critical infrastructure risk | — Pending |
-| Existing clients first; custom client allowed later | Avoid unnecessary client work without sacrificing product goal | — Pending |
+| Existing clients first; custom client allowed later | Avoid unnecessary client work without sacrificing product goal | ✓ Confirmed 2026-07-31 |
 | Broad general-purpose Blossom service | Support media, documents, archives, and technical collaboration | — Pending |
 | Bidirectional community discovery with strict privacy boundary | Keep community connected to wider Nostr without leaking private events | — Pending |
 | Honor signed deletions | Respect user agency while documenting backup-retention limits | — Pending |
@@ -162,11 +179,11 @@ Public opening requires all of the following:
 | Research brand relationship across three territories | Working title and final relationship to Sovereign Engineering remain unresolved | — Pending |
 | Defer GitHub remote creation until naming is resolved | Avoid cementing a misleading repository identity while preserving local planning progress | — Pending |
 | Use issues, draft PRs, and external Codex review | Keep implementation contextual, reviewable, and defect-driven | — Pending |
-| Defer Napplet/Kehto and use Pyramid relay method | Current Napplet/Kehto stack is alpha and client-side; it does not provide Pyramid membership, NIP-29 enforcement, persistence, moderation, or operations | — Pending |
+| Exclude Napplet/headless-applet architecture and use Pyramid relay method | It is a distinct future product direction; this project must learn from stock Pyramid and existing clients without absorbing that architecture | ✓ Confirmed 2026-07-31 |
 
 ## Open Research Questions
 
-- Which Pyramid repository and release are canonical, and what is its actual supported feature/NIP matrix?
+- Which current upstream Pyramid release/commit should be pinned for the discovery pilot, and does it still match the researched v1.3.2 behavior?
 - How does Pyramid deploy, persist, authenticate, authorize, moderate, back up, upgrade, and expose administration?
 - Which launch requirements are native to Pyramid, which require configuration, and which require separate services?
 - What do NIP-29 public/private and open/closed group semantics guarantee in practice?
@@ -199,4 +216,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-07-30 after initialization*
+*Last updated: 2026-07-31 after stock-Pyramid discovery-pilot decision*

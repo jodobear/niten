@@ -13,6 +13,14 @@ Recommended v1 is deliberately modular: native Pyramid binary under `systemd` on
 
 The main risks are false security promises, immature admin behavior, policy/role mismatch, deletion resurrection, private-event routing leaks, unbounded public media, and backups that cannot restore coherent state. NIP-29 `private` means relay-enforced access control—not E2EE—and ordinary multi-relay clients can still misroute plaintext. Private-room attachments must therefore remain disabled for sensitive content until an audited encrypted-group and encrypted-media design exists. A single 4-vCPU/8-GB/160-GB VPS plus offsite backup is feasible below US$100/month: base estimates are roughly $30–70, while a conservative all-in estimate with contingency is $61–91. The margin is narrow enough that actual media, egress, backup, and restore measurements are release gates.
 
+### Implementation Sequencing Decision — 2026-07-31
+
+Before implementing the researched v1 topology, run a bounded **stock-Pyramid discovery pilot**. Re-audit and pin the current upstream candidate, deploy it without source changes behind Caddy/systemd and minimum host safeguards, restrict the stock administration surface to operators, and onboard a small named alumni cohort through existing clients and member-controlled signers. The pilot tests native Pyramid membership, groups, roles, authentication, search, publishing, deletion, reconnect, error behavior, and client/signer compatibility in real use.
+
+Standalone Blossom, hosted community clients, aggregation, curation, companion services, and Pyramid patches are not prerequisites for this discovery deployment. Record native capability, configuration needs, Pyramid defects, client gaps, missing workflows, operational behavior, and participant feedback; then plan the next milestone from that evidence. The larger seven-process v1 topology below remains a researched target, not the discovery-pilot starting topology.
+
+Napplet-style hosted headless community applets are a distinct possible future product direction and are fully outside this project's roadmap. Preserve only the general boundary that clients remain replaceable and non-authoritative.
+
 ## Decision Posture
 
 ### Confirmed Facts
@@ -90,7 +98,7 @@ Recommended internal pilot has **7 project-managed always-on processes, 11 proje
 
 Four additional managed units are two timer/oneshot pairs: backup and restore-check. Internal local origins are `relay.<domain>`, `blobs.<domain>`, and `community.<domain>`; externally hosted status is separate. The three counted stores are Pyramid, Blossom, and Prometheus. Restic is an off-host repository, while certificates, logs, and Alertmanager state remain in the recovery inventory without becoming product stores.
 
-The gated materialized aggregator adds exactly **+1 process, +1 unit, +1 store, +1 Nostr-aware component, and no origin or WSS server**. Selected later aggregation + Git + GRASP + stateless private-media gateway yields **11 processes, 15 units, 7 local origins plus 1 external status origin, 6 stores, 5 Nostr-aware server processes, 2 WSS relay servers, and still 1 server-held event signer**. A browser Napplet/Kehto runtime adds **zero operator processes, units, origins, or stores** because it is static client code on `community.<domain>`.
+The gated materialized aggregator adds exactly **+1 process, +1 unit, +1 store, +1 Nostr-aware component, and no origin or WSS server**. Selected later aggregation + Git + GRASP + stateless private-media gateway yields **11 processes, 15 units, 7 local origins plus 1 external status origin, 6 stores, 5 Nostr-aware server processes, 2 WSS relay servers, and still 1 server-held event signer**. Prior Napplet research found that a browser runtime could be static, but that direction is not part of this project's service budget or roadmap.
 
 **One-authority duplication budget:** one canonical membership/policy authority, one canonical community-event store, one canonical public-blob owner, and zero server-side member signers. Repeated parsing, event-ID/signature verification, endpoint-specific authorization checks, scoped filtering/deduplication, and disposable projections are required at trust boundaries. Duplicate membership/role tables, public relay/search truth, re-signed member content, Napplet ACL as relay authorization, or a second blob catalog are prohibited.
 
@@ -108,7 +116,7 @@ The gated materialized aggregator adds exactly **+1 process, +1 unit, +1 store, 
 | Public federation | Direct client queries first; sidecar later | Avoid copied-content lifecycle until measured need |
 | Best-of | Signed curator/projection or hardened favorites | Manual, admin-only, preserves original event/signature |
 | Git/NIP-34 | Separate Git host + GRASP later | Git objects and Nostr collaboration have separate lifecycles |
-| Client composition/runtime | Existing clients and replaceable browser adapters; Kehto/Napplet only later | Client ACL/signing/routing is not relay membership, persistence, moderation, or operations |
+| Client composition/runtime | Existing clients and replaceable conventional browser adapters; Napplet/headless-applet work excluded | Client ACL/signing/routing is not relay membership, persistence, moderation, or operations |
 | Observability/backup | Separate operator services | Must remain useful when Pyramid is unhealthy |
 
 ### Expected Features
@@ -139,7 +147,7 @@ The gated materialized aggregator adds exactly **+1 process, +1 unit, +1 store, 
 - Marmot/MLS E2EE rooms and encrypted group attachments.
 - NIP-29-aware live replica/failover.
 - Full custom client; requires documented core-job failures across composed clients plus maintenance/security ownership.
-- Napplet/Kehto production use; first eligible work is a post-stability read-only public-feed/directory experiment.
+- Napplet/Kehto production use or hosted headless-applet architecture; pursue only as a separate future project.
 - Public educational/cloneable release until production stability and publication decisions pass.
 
 ### Client and Signer Compatibility
@@ -176,9 +184,9 @@ Each client must use its own origin. Do not iframe clients or mount independent 
 
 The architecture score for the recommended sequence—portal now, one static hosted client, bounded fork only on evidence—is **8.5/10**. It reaches 10/10 only after: (1) an analytics-free configuration-only upstream mode, (2) reproducible pinned builds with checksums/SBOM/provenance and a security rebuild drill, (3) the full 180-cell client/signer/flow matrix plus hosting checks, (4) leak-free standard deep links and endpoint adapters, and (5) an eight-week trial proving the hosted client completes at least 90% of measured weekly jobs while remaining removable.
 
-### Napplet and Kehto Posture
+### Napplet and Kehto Research Boundary
 
-Napplet/Kehto is a promising **client capability-isolation model**, not a replacement for Pyramid, Blossom, or the launch companion UI. Canonical repositories and inspected pins are:
+Napplet/Kehto is a promising **client capability-isolation model**, not a replacement for Pyramid, Blossom, or the launch companion UI. It is out of scope for this project's implementation and roadmap; the retained research only prevents future boundary confusion. Canonical repositories and inspected pins are:
 
 | Repository | Inspected pin | Actual role |
 |---|---|---|
@@ -190,9 +198,7 @@ Use the singular lower-case `napplet` namespace; historical `napplet/napplet` an
 
 Boundary is strict: Kehto may mediate a browser's napplet identity, capability grants, signer consent, relay selection, upload/fetch, local preferences, and intent routing. Pyramid still owns membership, invites, roles, NIP-29/42/86, NIP-05/50, moderation, deletion, persistence, search, backup, and upgrades. Blossom still owns blob persistence, ownership, quotas, deletion, abuse handling, and backup. NAP-STORAGE is disposable client KV, NAP-IDENTITY is not the alumni roster, NAP-UPLOAD is not a media server, and a Napplet ACL cannot authorize anything at the relay. Pyramid/Blossom must independently revalidate every request.
 
-Design replaceable client seams now—`PyramidRelayAdapter`, `CommunityReadModel`, `PublicOutboxAdapter`, `PublicUploadAdapter`, `NappletStateAdapter`, `ShellConfigAdapter`, `NotificationAdapter`, and `IntentCatalog`—but implement them conventionally for v1. No UI may own community authority; all writes require authoritative server confirmation, while optimistic UI remains explicitly pending and disposable.
-
-After the full stability gate, permit one isolated **read-only public feed or directory** experiment. Acceptance requires exact immutable NIP-5D/NAP/SDK/Kehto pins; verified manifest/blob/aggregate; `srcdoc` with `sandbox="allow-scripts"` and no `allow-same-origin`; only read-only identity/relay-or-outbox/resource plus non-authoritative storage/config/intent; fixed Pyramid/public-relay allowlists; no private kinds/relays, signing, upload, deletion, admin, invite, role, moderation, or NIP-05 surface; resource quotas and malicious-napplet tests; and removal with zero effect on Pyramid, Blossom, identities, or community data. Promote only if it replaces existing code or solves a measured user job better than Jumble/Flotilla plus the conventional companion UI.
+Keep any later conventional UI replaceable and non-authoritative. No UI may own community authority; all writes require authoritative server confirmation, while optimistic UI remains explicitly pending and disposable. Any Napplet/headless-applet experiment requires a separate project charter rather than promotion through this roadmap.
 
 ### Federation and Portability
 
@@ -274,9 +280,16 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 - Make the exact v1 count a requirements budget: 7 always-on processes, 11 units, 3 pilot/4 launch local origins, 3 stores, 2 Nostr-aware servers, 1 WSS relay, and no hosted member signer; any addition must declare its count and authority delta.
 - Enforce the one-authority budget: Pyramid owns community policy/events; Blossom owns public blobs; client/runtime state is disposable and cannot become roster, search, moderation, or deletion truth.
 - Require every client-facing feature to consume replaceable adapters and authoritative server APIs. UI writes succeed only after server confirmation.
-- Exclude Napplet/Kehto from v1 and public-launch gates. Preserve a post-stability, removable, read-only public feed/directory experiment with the explicit sandbox/allowlist/no-write acceptance gate.
+- Exclude Napplet/Kehto and hosted headless-applet architecture from this project entirely; transfer retained research only if a separately chartered future project is approved.
 
 ## Implications for Roadmap
+
+### Phase -1: Stock Pyramid Discovery Pilot
+**Rationale:** Real stock-Pyramid use should define the implementation problem before the project owns companion services or patches.
+**Delivers:** current upstream pin audit; source-unmodified build; minimal Caddy/systemd/permissions/backup/rollback envelope; privately restricted operator administration; small named alumni cohort using existing clients/signers; native capability and compatibility evidence; participant feedback; categorized next-step decision.
+**Addresses:** fastest safe path to live Pyramid groups and evidence-driven requirements.
+**Avoids:** speculative hosted UI, premature Blossom/federation work, local patches before an upstream baseline, and architecture chosen from documentation alone.
+**Research:** implementation-focused current-pin audit and live acceptance only.
 
 ### Phase 0: Governance, Brand, and Operating Decisions
 **Rationale:** Provider, legal, identity, retention, and naming choices constrain every later interface and policy.  
@@ -336,10 +349,10 @@ Use a single-host modular architecture with strict trust and state boundaries. C
 
 ### Phase 8: Post-Launch Expansion and Education
 **Rationale:** Extensions should follow demonstrated conversation habit and stable operations.  
-**Delivers:** pinned static Jumble public-feed trial; evidence-gated web-only Flotilla hardening fork and workspace trial; badges/community map, events/V4V/governance, selected NIP-34/GRASP, optional LiveKit, sanitized educational site/NIP-23 series/quickstart, publication decision, and one removable read-only public-feed/directory Napplet/Kehto experiment after stability. Separate future research tracks cover replica, Marmot/MLS E2EE, encrypted group media, and custom client.
+**Delivers:** pinned static Jumble public-feed trial; evidence-gated web-only Flotilla hardening fork and workspace trial; badges/community map, events/V4V/governance, selected NIP-34/GRASP, optional LiveKit, sanitized educational site/NIP-23 series/quickstart, and publication decision. Separate future research tracks cover replica, Marmot/MLS E2EE, encrypted group media, and custom client.
 **Addresses:** differentiators and reusable-reference objective.  
 **Avoids:** empty feature surfaces, Pyramid monolith, premature code publication, unaudited crypto, and alpha runtime productization on the launch critical path.
-**Research:** **Required** for E2EE/private media/replica/custom client and Napplet/Kehto experiment; ordinary educational publishing can use established patterns.
+**Research:** **Required** for E2EE/private media/replica/custom client; ordinary educational publishing can use established patterns. Napplet/headless-applet work requires a separate project.
 
 ### Phase Ordering Rationale
 
@@ -367,7 +380,7 @@ Public opening requires retained evidence of all of the following:
 
 ### Research Flags
 
-**Deeper phase research required:** Phases 0–6 for the explicit gates above; Phase 8 for E2EE, private media, replica, NIP-34, LiveKit, or custom-client work.
+**Deeper phase research required:** Phase -1 needs only current-pin and executable acceptance research; Phases 0–6 need the explicit gates above; Phase 8 needs research for E2EE, private media, replica, NIP-34, LiveKit, or custom-client work.
 
 **Standard patterns; skip dedicated research unless scope changes:** static public website, conventional Caddy routing after URLs are fixed, ordinary journald/Prometheus wiring, manual editorial workflow, pilot facilitation mechanics, and post-launch NIP-23 educational publishing. Even these still require project-specific acceptance tests.
 
@@ -411,7 +424,7 @@ Public opening requires retained evidence of all of the following:
 - Client/signer triples, auto-update behavior, exact group destinations, notifications, and deletion flows.
 - Roster/data reconciliation for badges/directory and Best-of authorization mechanism.
 - Final name, GitHub owner/repository identity, and post-launch publication model.
-- Versioned replaceable adapter contracts and the post-stability Napplet removal/security/utility acceptance evidence.
+- Versioned replaceable conventional client-adapter contracts and removal/security/utility acceptance evidence.
 
 ## Sources
 
