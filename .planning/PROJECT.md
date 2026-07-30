@@ -53,6 +53,7 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - [ ] After stable launch, publish education that explains the philosophy, provides a reproducible quickstart, and teaches production trade-offs and safe adaptation.
 - [ ] Choose an appropriate final repository name, create the GitHub remote, and use contextual issues plus branch-based draft pull requests for implementation work.
 - [ ] Integrate the external Codex GitHub review loop: poll each pull request for review results, fix actionable defects, and preserve verification evidence before merge.
+- [ ] Keep all client-facing surfaces replaceable and non-authoritative: Pyramid remains the sole membership, policy, group, moderation, event, and search authority.
 
 ### Out of Scope
 
@@ -65,6 +66,7 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - Public release before internal stability evidence exists — no calendar deadline overrides acceptance gates.
 - Public release of the live deployment repository before launch — publication strategy will be decided after the system is stable, while portability is preserved from day one.
 - Public plaintext attachments for private rooms — private media must be encrypted or access-controlled.
+- Napplet/Kehto runtime integration in the current roadmap — use the Pyramid relay method with existing clients and conventional thin web surfaces; preserve only the architectural learning that UI must remain replaceable and non-authoritative.
 
 ## Context
 
@@ -94,6 +96,7 @@ Give Sovereign Engineering alumni a reliable, high-signal online town square the
 - The project should be easy to clone, configure, and build for another community if the repository is later made public.
 - The local repository has no remote yet. Remote creation waits for naming research and an explicit repository-owner decision.
 - Delivery should use contextual GitHub issues and draft pull requests. An external Codex GitHub connector reviews pull requests; the implementation workflow must poll its results, address actionable findings, and re-verify before merge.
+- Napplet research confirmed that NAP/Kehto is a client-side capability-composition model, not a replacement for Pyramid's server authority. It is deferred; current delivery uses Pyramid, existing Nostr clients, and narrowly scoped companion surfaces.
 
 ### Privacy, Portability, and Federation
 
@@ -159,6 +162,7 @@ Public opening requires all of the following:
 | Research brand relationship across three territories | Working title and final relationship to Sovereign Engineering remain unresolved | — Pending |
 | Defer GitHub remote creation until naming is resolved | Avoid cementing a misleading repository identity while preserving local planning progress | — Pending |
 | Use issues, draft PRs, and external Codex review | Keep implementation contextual, reviewable, and defect-driven | — Pending |
+| Defer Napplet/Kehto and use Pyramid relay method | Current Napplet/Kehto stack is alpha and client-side; it does not provide Pyramid membership, NIP-29 enforcement, persistence, moderation, or operations | — Pending |
 
 ## Open Research Questions
 
