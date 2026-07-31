@@ -75,7 +75,7 @@
 | PILOT-03 | Stock Pyramid browser administration is not exposed as a general public surface; operator access is restricted to an approved private path while existing clients exercise ordinary group/member workflows. | Public/private Caddy routing, private bootstrap order, route-denial tests, and browser-session risks are documented. |
 | PILOT-04 | A small named cohort of testing alumni can connect to the pilot through existing Nostr clients and member-controlled NIP-07, NIP-46, or NIP-55 signers without giving keys to project infrastructure. | Roster ingestion is out-of-band and signer coverage uses NIP-07/46/55 without VPS key custody. |
 | PILOT-05 | The cohort exercises stock Pyramid membership, invitations, public/restricted/private group behavior, roles, NIP-42 authentication, NIP-50 search, notes/replies/reactions, deletion, reconnect, and rejection/error paths that supported clients expose. | A sequenced stock-flow matrix defines every required behavior and negative control. |
-| PILOT-06 | Operators retain exact client/signer/Pyramid pass-fail evidence, destination captures for access-controlled content, operational observations, participant workflow feedback, and a categorized list of native capability, configuration need, defect, client gap, and genuinely missing product requirement. | Evidence schema, redaction split, destination traps, and classification vocabulary are specified. |
+| PILOT-06 | Operators retain exact client/signer/Pyramid pass-fail evidence, destination captures for access-controlled content, operational observations, participant workflow feedback, and a categorized list of native capability, configuration need, defect, client gap, and genuinely missing product requirement. | Plain Markdown checklist fields, private-journal split, destination traps, and classification vocabulary are specified. |
 | PILOT-07 | Standalone Blossom, hosted community clients, public-event aggregation, custom curation, companion APIs, Pyramid source patches, and other product services are not discovery-pilot dependencies; each requires evidence and a new planning decision after the pilot. | Minimum module configuration and explicit non-goals keep these absent. |
 | PILOT-08 | The discovery review selects the next milestone from retained evidence and can discard/redeploy the pilot without making member identity, keys, or external Nostr content dependent on the experimental host. | The hard decision gate, key-custody boundary, exports, restore proof, and disposal contract preserve exit. |
 | DOC-01 | Operators maintain a private build journal from day one containing decisions, failures, fixes, diagrams, costs, compatibility evidence, restore evidence, and upstream improvement notes. | A private journal/evidence layout and minimum journal record are defined. |
@@ -157,7 +157,7 @@ Do not use upstream `easy.sh`: it selects mutable latest state, changes firewall
 
 ## Package Legitimacy Audit
 
-No npm, PyPI, or crates package is introduced by this phase. Pyramid's npm modules are upstream source-build inputs, not new project dependency choices; preserve their resolved tree in the private build journal. The package-legitimacy gate is therefore not applicable. Release artifacts are instead gated by canonical repository, exact tag/commit, registry/release metadata, size, and SHA-256. [VERIFIED: phase stack and upstream source]
+No npm, PyPI, or crates package is introduced by this phase. Pyramid's npm modules are upstream source-build inputs, not new project dependency choices; preserve their resolved tree in the private build journal. The package-legitimacy gate is therefore not applicable. Release artifacts are instead gated by canonical repository, exact tag/commit, official release metadata, size, and SHA-256. [VERIFIED: phase stack and upstream source]
 
 ## Architecture Patterns
 
@@ -205,19 +205,23 @@ deploy/
 ├── systemd/niten-restore-check.{service,timer}
 └── settings/settings.example.json  # secret-free effective settings template
 scripts/
-├── verify-artifact.sh              # pin, size, checksum, ELF metadata
-├── roster-import.sh                # reads private file/FD; emits only counts/status
+├── verify-pyramid.sh               # pin, size, checksum, source reproduction
+├── local-stock-smoke.sh            # disposable loopback NIP-11/WSS tracer
+├── deploy-private-host.sh          # private-first host and firewall lifecycle
+├── import-roster.sh                # reads private file/FD; retains only counts/status
 ├── backup.sh                       # quiesce, snapshot, restart, check
 ├── restore-drill.sh                # blank path/host, never live overwrite
-└── evidence-redact.sh              # allowlist schema and leak scan
+├── verify-public-boundary.sh       # all-address external scan and route probes
+└── repo-preflight.sh               # narrow tracked/staged sensitive-shape check
 docs/
-├── operations.md                   # bootstrap, update, rollback, discard
+├── private-journal.md              # outside-Git dated log/tree procedure
+├── operations.md                   # bootstrap and private boundary
+├── recovery-and-exit.md            # backup, rollback, discard
 ├── quickstart.md                   # concise cohort instructions/privacy
-├── incident-template.md
-└── decision-gate.md
-evidence/
-├── README.md                       # schema and redaction policy
-└── cases/                          # redacted per-case results only
+├── incident-template.md            # concise redacted notice fields
+├── pilot-test-matrix.md            # plain required cases/columns
+├── pilot-review.md                 # manual hard-verdict criteria
+└── pilot-outcome.md                # one redacted selected outcome
 ```
 
 [RECOMMENDATION: derived from PILOT-01 through PILOT-08 and DOC-01]
@@ -309,7 +313,7 @@ Use `HOST=127.0.0.1`, `PORT=3334`, `DATA_PATH=/var/lib/pyramid/current`, `NO_AUT
 
 ### Pattern 4: Minimal Effective Settings
 
-Enable `groups.enabled` and `search.enable`. Set `max_invites_per_person` to `0`, `allow_access_request=false`, `allow_ephemeral_from_anyone=false`, `accept_scheduled_events=false`, and explicitly disable internal, personal, favorites, inbox, bookmarks, popular, uppermost, moderated, Blossom, GRASP, nsite, stream, imgproxy, link preview, paywall, operator, embedded LiveKit, and other non-pilot modules. Set domain, alternate private admin domain, relay name, contact, description/privacy wording, limits, and icon explicitly. After bootstrap, export a redacted effective-settings report plus its checksum; never export `relay_internal_secret_key`. [VERIFIED: official Pyramid v1.3.2 defaults and settings schema; RECOMMENDATION: minimum Phase 1 surface]
+Enable `groups.enabled` and `search.enable`. Set `max_invites_per_person` to `0`, `allow_access_request=false`, `allow_ephemeral_from_anyone=false`, `accept_scheduled_events=false`, and explicitly disable internal, personal, favorites, inbox, bookmarks, popular, uppermost, moderated, Blossom, GRASP, nsite, stream, imgproxy, link preview, paywall, operator, embedded LiveKit, and other non-pilot modules. Set domain, alternate private admin domain, relay name, contact, description/privacy wording, limits, and icon explicitly. After bootstrap, export a redacted effective-settings report plus its checksum; never export `relay_internal_secret_key`. [VERIFIED: official Pyramid v1.3.2 defaults and settings definitions; RECOMMENDATION: minimum Phase 1 surface]
 
 Pyramid performs startup egress attempts to `api.ipify.org` and `httpbin.org`, and automatic update checks unless disabled. Record those stock attempts in the network inventory; deny unexpected destinations at the host only after proving startup and required group/client behavior remain functional. [VERIFIED: official Pyramid v1.3.2 `global/global.go` and update source]
 
@@ -327,7 +331,7 @@ With `max_invites_per_person=0`, non-root members cannot expand membership throu
 
 - **Treating a private group as encryption:** Pyramid and operators can read content; say “access-controlled, operator-readable, not E2EE.” [CITED: https://github.com/nostr-protocol/nips/blob/master/29.md]
 - **Using the stock browser login as a public admin boundary:** its cookie is long-lived and JavaScript-readable, and the page executes CDN scripts. Use private reachability plus an isolated operator profile and pilot-only operator identity. [VERIFIED: official Pyramid v1.3.2 UI/auth source]
-- **Logging protocol fixtures blindly:** raw events reveal pubkeys, content, group IDs, relay sets, and sometimes signer connection data. Generate redacted case metadata separately. [VERIFIED: CONTEXT D-24 and D-27]
+- **Logging protocol captures blindly:** raw events reveal pubkeys, content, group IDs, relay sets, and sometimes signer connection data. Keep them only beside the private journal; repository summaries stay concise and redacted. [VERIFIED: CONTEXT D-24 and D-27]
 - **Live-copying mmap/search state:** quiesce the service for the authoritative backup until a verified upstream consistency mechanism exists. [VERIFIED: official Pyramid v1.3.2 store layout]
 - **Calling all client failures relay defects:** preserve client, signer, Pyramid, relay destinations, and negative controls so ownership can be classified. [VERIFIED: PILOT-06]
 
@@ -340,7 +344,7 @@ With `max_invites_per_person=0`, non-root members cannot expand membership throu
 | Relay membership/groups/search | Shadow database or companion API | Stock Pyramid | Duplicate authority would defeat the discovery question. [VERIFIED: PILOT-07 and official Pyramid source] |
 | Backup encryption/dedup/check | Tarball script | restic v0.19.1 plus restore drill | Repository checks and restores are standard operations, while an ad hoc archive proves neither. [CITED: official restic backup/restore docs] |
 | Client/signer cross-product | New hosted client | Required existing clients/signers only | Hosted UI and full matrix are explicitly deferred. [VERIFIED: D-10, D-11, PILOT-07] |
-| Secret redaction | Generic regex-only cleanup | Positive evidence schema plus repository leak scan | Known-safe fields are more reliable than guessing every secret representation. [RECOMMENDATION: data minimization]
+| Secret redaction | General evidence framework | Private journal, concise reviewed Markdown, and small tracked/staged high-confidence preflight | Keeps the pilot auditable without creating a second product. [RECOMMENDATION: data minimization] |
 
 **Key insight:** Phase 1 measures stock Pyramid. Every custom authority, patched route, hosted client, or companion service destroys the experimental boundary and moves the question instead of answering it. [VERIFIED: phase boundary and PILOT-07]
 
@@ -407,32 +411,15 @@ Mutable web clients require URL, client-reported version, platform/user agent, o
 7. **Operations:** disruptive notice, stop/start/restart, backup/check, blank restore, rollback to prior generation, and disposal/export rehearsal. [VERIFIED: PILOT-02/08/DOC-01]
 8. **Feedback/decision:** collect structured participant/operator reports, categorize, close evidence gaps, issue one hard verdict. [VERIFIED: PILOT-06/08]
 
-### Evidence Record
+### Plain Test Checklist
 
-```yaml
-case_id: P1-GROUP-PRIVATE-READ-UNAUTH
-requirement: PILOT-05
-observed_at_utc: <timestamp>
-pyramid: {tag: v1.3.2, commit: e12e8164, artifact_sha256: <verified>}
-client: {name: <name>, version: <version>, build_ref: <url-or-hash>, platform: <platform>}
-signer: {family: NIP-07|NIP-46|NIP-55, product: <name>, version: <version>}
-identity_class: allowlisted-real|disposable-operator|unauthorized-disposable
-action: <controlled vocabulary>
-expected: pass|reject
-observed: pass|reject|error|timeout
-destinations: [niten, trap-none]  # aliases only in committed evidence
-evidence_refs: [private-journal-id, redacted-log-id]
-classification: native-capability|configuration-need|pyramid-defect|client-gap|missing-product-requirement
-containment: <none-or-redacted-action>
-```
+`docs/pilot-test-matrix.md` defines one Markdown row per required case with these columns: case ID, capability/flow, client, signer family, exact observed client product/version/build at test time, exact observed signer product/version/build at test time, Pyramid pin, expected, actual, timestamp, pass/fail, evidence pointer, category, and notes. Operators fill a private copy during the live session and keep raw captures beside the private journal. Repository retains the blank format and redacted aggregate summaries only. S5 client and signer are selected and observed during its live session; their platforms may differ. [RECOMMENDATION: implements PILOT-06 without creating a reusable evidence product]
 
-[RECOMMENDATION: implements PILOT-06 without retaining sensitive payloads]
-
-Committed evidence must contain no event JSON/body, event IDs from private tests, roster event identifier, pubkeys/npubs/nprofiles, group invite codes, private group identifiers, bunker/nostrconnect URI, connection secret, authorization header/cookie, `nsec`, credentials, live IPs, or raw logs. The private journal may map opaque case IDs to sensitive fixtures under operator access; it must still never contain signer private keys or connection secrets. Run a leak scan before every evidence commit. [VERIFIED: D-24/D-27; RECOMMENDATION: data minimization]
+Committed summaries must contain no event JSON/body, event IDs from private tests, roster event identifier, pubkeys/npubs/nprofiles, group invite codes, private group identifiers, bunker/nostrconnect URI, connection secret, authorization header/cookie, `nsec`, credentials, live IPs, or raw logs. The private journal may link opaque case IDs to sensitive captures under operator access; it must still never contain signer private keys or connection secrets. Run the narrow tracked/staged repository preflight before every summary commit. [VERIFIED: D-24/D-27; RECOMMENDATION: data minimization]
 
 ### Hard Decision Gate
 
-The gate opens only when every required stock flow and S1-S5 signer path has an observed pass/fail, public/private route tests pass, the private roster is reconciled, every access-controlled destination capture is classified, backup/blank restore/rollback pass, feedback is categorized, and incident/exit notices are ready. A failure may be accepted as evidence; a missing observation may not. [VERIFIED: D-13, D-21, PILOT-06/08]
+The gate opens only after a human checks every required stock flow and S1-S5 signer path has an observed pass/fail or explicit supported-client gap, public/private route tests pass, the private roster is reconciled, directory presence is verified, every access-controlled destination capture is classified, backup/blank restore/rollback pass, feedback/incidents are categorized, and journal pointers exist. A failure may be accepted as evidence; a missing observation may not. [VERIFIED: D-13, D-21, PILOT-06/08]
 
 Issue exactly one signed review verdict with owner, date, evidence index, unresolved risks, containment, next milestone, and exit actions:
 
@@ -515,24 +502,12 @@ upstream issue/improvement candidates; final gate impact
 
 All other implementation facts in this document were verified against live official repositories/source or cited official documentation. Recommendations still require execution evidence on the chosen VPS and exact client builds. [VERIFIED: research record]
 
-## Open Questions
+## Resolved Execution Questions
 
-1. **VPS/provider/region and private mesh are not selected.**
-   - What we know: public DNS/TLS and private operator reachability are required. [VERIFIED: D-01/D-03]
-   - What's unclear: provider, jurisdiction/AUP, Debian image, backup region, mesh product/address, and operator CA distribution. [VERIFIED: current planning state]
-   - Recommendation: Wave 0 must lock these before any public DNS cutover. [RECOMMENDATION]
-2. **Does D-06 permit stock-visible membership pubkeys?**
-   - What we know: input event and extracted files stay private, but stock Pyramid exposes resulting membership relationships. [VERIFIED: official Pyramid source]
-   - What's unclear: whether alumni have consented to that distinction. [VERIFIED: CONTEXT contains no explicit consent result]
-   - Recommendation: make this a pre-onboarding human gate; if hidden membership is required, Phase 1 cannot satisfy it source-unmodified. [RECOMMENDATION]
-3. **Exact production client builds may move.**
-   - What we know: current tags were verified, but hosted/mobile/store releases are mutable operational inputs. [VERIFIED: official client repositories]
-   - What's unclear: what build each participant will actually run. [VERIFIED: no cohort run exists yet]
-   - Recommendation: freeze the matrix at test time and retain build/URL/platform evidence. [RECOMMENDATION]
-4. **Browser admin exposure remains discovery-grade.**
-   - What we know: private routing reduces reachability but does not remove long-lived cookie/CDN script risk. [VERIFIED: official Pyramid v1.3.2 source]
-   - What's unclear: whether the operator accepts a dedicated pilot identity/profile and whether all privileged HTTP paths can be fully denied publicly without impairing required flows. [VERIFIED: execution not yet performed]
-   - Recommendation: require route probes and operator acceptance before public onboarding; likely classify production remediation as `REVISE`. [RECOMMENDATION]
+1. **VPS/provider/region, private mesh, DNS, and backup target — RESOLVED by named blocking checkpoint.** Plan 01-02 records non-secret provider/image/region/mesh/backup classes and requires protected execution inputs before host work. `target-not-ready` stops execution; no executor-selected provider value is implied. [VERIFIED: D-01/D-03; RESOLVED: Plan 01-02]
+2. **Stock-visible membership consent — RESOLVED by immediate pre-import blocking checkpoint.** Plan 01-05 requires exact disclosure and explicit `consent-proceed` or `consent-stop`. Hidden membership selects stop because source-unmodified stock Pyramid cannot satisfy it. [VERIFIED: official Pyramid source; RESOLVED: Plan 01-05]
+3. **Mutable production client/signer builds — RESOLVED as live-session observations.** Plans 01-06/01-07 define required Markdown columns and capture product/version/build/source/platform/UTC during the same session as each result. S5 client and signer remain member-chosen until its session and may use different platforms. No planning-time build value is production fact. [RESOLVED: Plans 01-06/01-07]
+4. **Discovery-grade browser admin exposure — RESOLVED by separate technical and judgment gates.** Plans 01-03/01-04 require selected-pin public/private route, cookie/CDN inventory, internal-CA/private-browser setup, and dual-vantage acceptance before cohort work; Plan 01-05 requires operator acceptance of dedicated pilot identity/profile and residual risk before roster import. PROCEED remains forbidden with unresolved critical/high risk. [VERIFIED: official Pyramid source; RESOLVED: Plans 01-03/01-04/01-05/01-08]
 
 ## Environment Availability
 
@@ -561,7 +536,7 @@ This audit describes the current planning workstation, not the fresh VPS; the ta
 | V2 Authentication | yes | NIP-42 connection auth for relay; private reachability plus dedicated pilot operator identity for stock browser admin. Never treat the stock cookie alone as sufficient. [VERIFIED: Pyramid source; CITED: NIP-42] |
 | V3 Session Management | yes | Isolated admin profile, private origin, no public admin; record the stock cookie weakness as a gate. [VERIFIED: Pyramid v1.3.2 source] |
 | V4 Access Control | yes | Pyramid membership/group checks plus public/private ingress tests and disposable negative identities. [VERIFIED: Pyramid source; CITED: NIP-29] |
-| V5 Input Validation | yes | Stock event signature/ID/schema/limit checks; separately validate roster event/type/pubkeys and negative fixtures. [VERIFIED: Pyramid source; CITED: NIP-01] |
+| V5 Input Validation | yes | Stock event signature/ID/structure/limit checks; separately validate roster event/type/pubkeys and disposable negative cases. [VERIFIED: Pyramid source; CITED: NIP-01] |
 | V6 Cryptography | yes | Nostr secp256k1/Schnorr in existing clients/signers; Caddy TLS; restic encryption. Never hand-roll or store member keys. [CITED: official NIPs, Caddy, and restic docs] |
 | V7 Error/Logging | yes | Bounded namespaced journald, app-log rotation, redacted evidence, no raw private events/signers. [VERIFIED: Pyramid logging source and D-24/D-27] |
 | V8 Data Protection | yes | `UMask=0077`, private state, off-host encrypted backup, private roster/journal, consent for membership visibility. [VERIFIED: Pyramid file modes and D-06/D-27] |
@@ -580,7 +555,7 @@ This audit describes the current planning workstation, not the fresh VPS; the ta
 | Supply-chain substitution | Tampering | Canonical repo, tag+commit+size+SHA-256, immutable release layout, clean-source reproduction journal. [VERIFIED: live release audit] |
 | Destructive rollback/restore | Tampering / Denial | Preserve failed generation, restore into blank path, match artifact/state/config, protocol acceptance before switch. [RECOMMENDATION]
 | CDN script compromise on stock page | Spoofing / Information Disclosure | No privileged public signer, isolated admin profile, private path, explicit production decision gate. [VERIFIED: Pyramid layout source] |
-| Sensitive data in Git/evidence | Information Disclosure | Positive redacted schema, leak scan, private opaque mapping, no raw logs/events/roster/signers. [VERIFIED: D-24/D-27] |
+| Sensitive data in Git/evidence | Information Disclosure | Private journal, concise redacted Markdown, small tracked/staged preflight, and no raw logs/events/roster/signers. [VERIFIED: D-24/D-27] |
 
 ## Sources
 
