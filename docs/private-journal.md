@@ -19,7 +19,7 @@ host, roster, or live-client command:
 $NITEN_PRIVATE_JOURNAL/
 ├── .active-run
 └── YYYY-MM-DD/
-    └── YYYYMMDDTHHMMSSZ-purpose/
+    └── YYYYMMDDTHHMMSSZ-purpose.XXXXXX/
         ├── journal.md
         └── raw/
             ├── audit/
@@ -47,11 +47,23 @@ repo_root=$(realpath -e -- "$(git rev-parse --show-toplevel)")
 [[ $journal_root != "$repo_root" && $journal_root != "$repo_root/"* ]]
 [[ $(git -C "$journal_root" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]]
 journal_utc=$(date -u +%Y-%m-%dT%H%M%SZ)
-run_dir="$journal_root/${journal_utc%%T*}/${journal_utc//-/}-discovery"
+run_parent="$journal_root/${journal_utc%%T*}"
+install -d -m 0700 -- "$run_parent"
+run_dir=$(mktemp -d "$run_parent/${journal_utc//-/}-discovery.XXXXXX")
+chmod 0700 -- "$run_dir"
 install -d -m 0700 -- "$run_dir/raw/"{audit,build,tracer,nip86,operations,restore,incidents,feedback}
 install -m 0600 /dev/null "$run_dir/journal.md"
-printf '%s\n' "$(realpath -e -- "$run_dir")" > "$journal_root/.active-run"
-chmod 0600 -- "$journal_root/.active-run"
+active_pointer="$journal_root/.active-run"
+if [[ -e $active_pointer || -L $active_pointer ]]; then
+  [[ -f $active_pointer && ! -L $active_pointer ]]
+  [[ $(stat -c '%h' -- "$active_pointer") == 1 ]]
+fi
+active_tmp=$(mktemp "$journal_root/.active-run.XXXXXX")
+trap 'rm -f -- "$active_tmp"' EXIT
+printf '%s\n' "$(realpath -e -- "$run_dir")" > "$active_tmp"
+chmod 0600 -- "$active_tmp"
+mv -fT -- "$active_tmp" "$active_pointer"
+trap - EXIT
 ```
 
 Append the intent before each command. Append actual result, exit status, and a

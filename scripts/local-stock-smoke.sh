@@ -41,16 +41,21 @@ journal_context() {
 }
 
 capture_context() {
-  local active=$1 raw_root capture raw_real capture_real
+  local active=$1 raw_root tracer_root capture raw_real tracer_real capture_real
   raw_root=$active/raw
-  capture=$raw_root/tracer
-  [[ ! -L $raw_root && ! -L $capture ]] || die 'private capture path must not use symlinks'
-  mkdir -p -- "$capture"
-  [[ -d $raw_root && -d $capture && ! -L $raw_root && ! -L $capture ]] || die 'private capture path invalid'
+  tracer_root=$raw_root/tracer
+  [[ ! -L $raw_root && ! -L $tracer_root ]] || die 'private capture path must not use symlinks'
+  mkdir -p -- "$tracer_root"
+  [[ -d $raw_root && -d $tracer_root && ! -L $raw_root && ! -L $tracer_root ]] || die 'private capture path invalid'
   raw_real=$(realpath -e -- "$raw_root") || die 'private raw capture root unresolved'
-  capture_real=$(realpath -e -- "$capture") || die 'private tracer capture unresolved'
-  [[ $raw_real == "$active/raw" && $capture_real == "$raw_real/tracer" ]] || die 'private capture path escaped active run'
-  chmod 0700 -- "$raw_real" "$capture_real"
+  tracer_real=$(realpath -e -- "$tracer_root") || die 'private tracer root unresolved'
+  [[ $raw_real == "$active/raw" && $tracer_real == "$raw_real/tracer" ]] || die 'private capture path escaped active run'
+  chmod 0700 -- "$raw_real" "$tracer_real"
+  capture=$(mktemp -d "$tracer_real/smoke-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX") || die 'private smoke capture creation failed'
+  [[ -d $capture && ! -L $capture ]] || die 'private smoke capture path invalid'
+  capture_real=$(realpath -e -- "$capture") || die 'private smoke capture unresolved'
+  [[ $capture_real == "$tracer_real/"* ]] || die 'private smoke capture escaped tracer root'
+  chmod 0700 -- "$capture_real"
   printf '%s' "$capture_real"
 }
 
@@ -71,6 +76,7 @@ prepare_private_file() {
 
 ACTIVE=$(journal_context)
 RAW=$(capture_context "$ACTIVE")
+CAPTURE_LABEL="raw/tracer/${RAW##*/}"
 JOURNAL="$ACTIVE/journal.md"
 prepare_private_file "$JOURNAL"
 printf '\n## Command entry\n- UTC: %s\n- Purpose: disposable exact-stock loopback NIP-11 and WebSocket tracer\n- Expected: verified official asset, loopback-only listener, protocol response, clean shutdown\n' \
@@ -90,7 +96,7 @@ record_failure() {
   printf '%s\n' \
     "- Actual: stock smoke exited with status $status; cleanup attempted" \
     '- Result: FAIL' \
-    '- Raw capture: private tracer captures' >> "$JOURNAL" || true
+    "- Raw capture: private $CAPTURE_LABEL" >> "$JOURNAL" || true
   chmod 0600 -- "$JOURNAL" 2>/dev/null || true
 }
 
@@ -268,7 +274,7 @@ for _ in {1..50}; do
 done
 ss -H -ltn "sport = :$PORT" 2>/dev/null | grep -q . && die 'listener remained after shutdown'
 printf '%s\n' "- Actual: verified stock asset returned NIP-11 and REQ/EOSE on loopback; process and marked state cleaned" \
-  "- Result: PASS" "- Raw capture: private tracer captures" >> "$JOURNAL"
+  "- Result: PASS" "- Raw capture: private $CAPTURE_LABEL" >> "$JOURNAL"
 SMOKE_RECORDED=true
 if [[ $SELF_TEST == true ]]; then
   printf '%s\n' 'local-stock-smoke self-test: PASS'
