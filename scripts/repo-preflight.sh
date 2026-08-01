@@ -63,14 +63,9 @@ scan_tracked() {
 }
 
 scan_history() {
-  local record oid='' file type content short_oid
-  while IFS= read -r -d '' record; do
-    if [[ $record != path=* ]]; then
-      oid=$record
-      continue
-    fi
-    [[ -n $oid ]] || continue
-    file=${record#path=}
+  local oid file type content short_oid
+  while IFS=' ' read -r oid file; do
+    [[ -n $file ]] || continue
     type=$(git -C "$ROOT" cat-file -t "$oid")
     [[ $type == blob ]] || continue
     content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-history.XXXXXX")
@@ -79,7 +74,7 @@ scan_history() {
     short_oid=${oid:0:12}
     scan_content "history@$short_oid" "$file" "$content"
     rm -f -- "$content"
-  done < <(git -C "$ROOT" rev-list --objects --all -z)
+  done < <(git -C "$ROOT" rev-list --objects --all)
 }
 
 scan_staged() {

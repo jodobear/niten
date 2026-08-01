@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 0077
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
   printf '%s\n' 'local-stock-smoke: repository unavailable' >&2
@@ -49,10 +50,26 @@ capture_context() {
   printf '%s' "$capture_real"
 }
 
+prepare_private_file() {
+  local path=$1 parent parent_real
+  parent=$(dirname -- "$path")
+  parent_real=$(realpath -e -- "$parent") || die 'private capture parent unresolved'
+  [[ $parent_real == "$ACTIVE" || $parent_real == "$ACTIVE/"* ]] || die 'private capture file escaped active run'
+  [[ ! -L $path ]] || die 'private capture file must not be a symlink'
+  if [[ -e $path ]]; then
+    [[ -f $path ]] || die 'private capture destination is not a regular file'
+  else
+    (set -C; : > "$path") 2>/dev/null || die 'private capture file creation failed'
+  fi
+  chmod 0600 -- "$path"
+}
+
 ACTIVE=$(journal_context)
 RAW=$(capture_context "$ACTIVE")
+JOURNAL="$ACTIVE/journal.md"
+prepare_private_file "$JOURNAL"
 printf '\n## Command entry\n- UTC: %s\n- Purpose: disposable exact-stock loopback NIP-11 and WebSocket tracer\n- Expected: verified official asset, loopback-only listener, protocol response, clean shutdown\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$ACTIVE/journal.md"
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$JOURNAL"
 
 STATE=
 PID=
@@ -93,12 +110,13 @@ if [[ -z $ASSET && -f $ACTIVE/raw/audit/downloads/$(field ASSET_NAME) ]]; then
 fi
 if [[ -z $ASSET ]]; then
   ASSET=$RAW/$(field ASSET_NAME)
+  prepare_private_file "$ASSET"
+  prepare_private_file "$RAW/download.txt"
   curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
     --output "$ASSET" "$(field ASSET_URL)" > "$RAW/download.txt" 2>&1
-  chmod 0600 -- "$ASSET" "$RAW/download.txt"
 fi
+prepare_private_file "$RAW/verify.txt"
 "$ROOT/scripts/verify-pyramid.sh" --asset "$ASSET" > "$RAW/verify.txt" 2>&1 || die 'official asset verification failed'
-chmod 0600 -- "$RAW/verify.txt"
 
 STATE=$(mktemp -d "${TMPDIR:-/tmp}/niten-stock-smoke.XXXXXX")
 chmod 0700 -- "$STATE"
@@ -113,6 +131,7 @@ PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); p
 
 start_pyramid() {
   local log_file=$1
+  prepare_private_file "$log_file"
   (
     cd "$STATE"
     umask 0077
@@ -134,12 +153,13 @@ for _ in {1..100}; do
   sleep 0.1
 done
 ss -H -ltn "sport = :$PORT" 2>/dev/null | grep -q . || die 'stock bootstrap listener unavailable'
+prepare_private_file "$RAW/setup-domain.txt"
 curl --fail --silent --show-error --output "$RAW/setup-domain.txt" \
   --data-urlencode 'domain=localhost' "http://127.0.0.1:$PORT/setup/domain" || die 'stock domain bootstrap failed'
+prepare_private_file "$RAW/setup-root.txt"
 curl --fail --silent --show-error --output "$RAW/setup-root.txt" \
   --data-urlencode 'pubkey=79be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798' \
   "http://127.0.0.1:$PORT/setup/root" || die 'disposable root bootstrap failed'
-chmod 0600 -- "$RAW/setup-domain.txt" "$RAW/setup-root.txt"
 kill "$PID"
 wait "$PID" 2>/dev/null || true
 PID=
@@ -180,23 +200,25 @@ chmod 0600 -- "$STATE/data/settings.next"
 mv -- "$STATE/data/settings.next" "$STATE/data/settings.json"
 
 start_pyramid "$RAW/process.txt"
+prepare_private_file "$RAW/nip11.json"
+prepare_private_file "$RAW/nip11.stderr"
 for _ in {1..200}; do
   if curl --fail --silent --show-error -H 'Accept: application/nostr+json' \
     "http://127.0.0.1:$PORT/" > "$RAW/nip11.json" 2> "$RAW/nip11.stderr"; then break; fi
   kill -0 "$PID" 2>/dev/null || die 'stock process exited before NIP-11'
   sleep 0.1
 done
-chmod 0600 -- "$RAW/nip11.json" "$RAW/nip11.stderr" "$RAW/process.txt" "$RAW/bootstrap-process.txt"
 jq -e '.software == "https://github.com/fiatjaf/pyramid" and (.supported_nips | type == "array")' "$RAW/nip11.json" >/dev/null || die 'NIP-11 response invalid'
 
+prepare_private_file "$RAW/listeners.txt"
 ss -H -ltnp > "$RAW/listeners.txt"
-chmod 0600 -- "$RAW/listeners.txt"
 listener=$(awk -v port=":$PORT" '$4 ~ port "$" {print $4}' "$RAW/listeners.txt")
 [[ -n $listener ]] || die 'Pyramid listener not found'
 while IFS= read -r address; do
   [[ $address == 127.0.0.1:"$PORT" ]] || die 'Pyramid listener is not loopback-only'
 done <<< "$listener"
 
+prepare_private_file "$RAW/websocket.txt"
 PORT="$PORT" node > "$RAW/websocket.txt" 2>&1 <<'NODE'
 const port = process.env.PORT;
 const subscription = `niten-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -215,7 +237,6 @@ ws.addEventListener("message", event => {
 });
 ws.addEventListener("error", () => { clearTimeout(timer); process.exit(1); });
 NODE
-chmod 0600 -- "$RAW/websocket.txt"
 
 kill "$PID"
 wait "$PID" 2>/dev/null || true
@@ -226,8 +247,7 @@ for _ in {1..50}; do
 done
 ss -H -ltn "sport = :$PORT" 2>/dev/null | grep -q . && die 'listener remained after shutdown'
 printf '%s\n' "- Actual: verified stock asset returned NIP-11 and REQ/EOSE on loopback; process and marked state cleaned" \
-  "- Result: PASS" "- Raw capture: private tracer captures" >> "$ACTIVE/journal.md"
-chmod 0600 -- "$ACTIVE/journal.md"
+  "- Result: PASS" "- Raw capture: private tracer captures" >> "$JOURNAL"
 if [[ $SELF_TEST == true ]]; then
   printf '%s\n' 'local-stock-smoke self-test: PASS'
 else
