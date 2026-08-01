@@ -21,7 +21,7 @@ field() {
 }
 
 journal_context() {
-  local journal=${NITEN_PRIVATE_JOURNAL:-} repo_real journal_real active
+  local journal=${NITEN_PRIVATE_JOURNAL:-} repo_real journal_real active active_real
   [[ $journal == /* && -d $journal && ! -L $journal ]] || die 'private journal precondition failed'
   repo_real=$(realpath -e -- "$ROOT") || die 'repository path unresolved'
   journal_real=$(realpath -e -- "$journal") || die 'private journal path unresolved'
@@ -29,8 +29,10 @@ journal_context() {
   [[ $(stat -c '%a' -- "$journal_real") == 700 ]] || die 'private journal root mode must be 0700'
   [[ -f $journal_real/.active-run && ! -L $journal_real/.active-run ]] || die 'private journal active run missing'
   active=$(cat "$journal_real/.active-run")
-  [[ $active == "$journal_real/"* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
-  printf '%s' "$active"
+  [[ $active == /* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
+  active_real=$(realpath -e -- "$active") || die 'private journal active run unresolved'
+  [[ $active_real == "$journal_real/"* ]] || die 'private journal active run escaped root'
+  printf '%s' "$active_real"
 }
 
 ACTIVE=$(journal_context)

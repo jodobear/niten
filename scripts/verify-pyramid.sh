@@ -100,7 +100,7 @@ validate_source() {
 }
 
 journal_context() {
-  local journal=${NITEN_PRIVATE_JOURNAL:-} repo_real journal_real active
+  local journal=${NITEN_PRIVATE_JOURNAL:-} repo_real journal_real active active_real
   [[ $journal == /* && -d $journal && ! -L $journal ]] || die 'private journal precondition failed'
   repo_real=$(realpath -e -- "$ROOT") || die 'repository path unresolved'
   journal_real=$(realpath -e -- "$journal") || die 'private journal path unresolved'
@@ -108,8 +108,10 @@ journal_context() {
   [[ $(stat -c '%a' -- "$journal_real") == 700 ]] || die 'private journal root mode must be 0700'
   [[ -f $journal_real/.active-run && ! -L $journal_real/.active-run ]] || die 'private journal active run missing'
   active=$(cat "$journal_real/.active-run")
-  [[ $active == "$journal_real/"* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
-  printf '%s' "$active"
+  [[ $active == /* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
+  active_real=$(realpath -e -- "$active") || die 'private journal active run unresolved'
+  [[ $active_real == "$journal_real/"* ]] || die 'private journal active run escaped root'
+  printf '%s' "$active_real"
 }
 
 record_result() {
@@ -119,8 +121,17 @@ record_result() {
   chmod 0600 -- "$active/journal.md"
 }
 
+release_asset_matches_lock() {
+  local api=$1 lock_file=$2 asset_name asset_size asset_digest
+  asset_name=$(field "$lock_file" ASSET_NAME)
+  asset_size=$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].size // empty' "$api")
+  asset_digest=$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].digest // empty' "$api")
+  [[ $asset_size == $(field "$lock_file" ASSET_SIZE) ]] || return 1
+  [[ $asset_digest == sha256:$(field "$lock_file" ASSET_SHA256) ]]
+}
+
 audit_current() {
-  local active=$1 capture api tag commit asset_name asset_size asset_digest refs
+  local active=$1 capture api tag commit refs
   capture="$active/raw/audit/verify-current-$(date -u +%Y%m%dT%H%M%SZ).txt"
   api=$(mktemp "$active/raw/audit/release.XXXXXX.json")
   refs=$(mktemp "$active/raw/audit/refs.XXXXXX.txt")
@@ -130,11 +141,7 @@ audit_current() {
       --output "$api" https://api.github.com/repos/fiatjaf/pyramid/releases/latest
     tag=$(jq -r '.tag_name' "$api")
     [[ $tag == $(field "$LOCK_FILE" TAG) ]]
-    asset_name=$(field "$LOCK_FILE" ASSET_NAME)
-    asset_size=$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].size // empty' "$api")
-    asset_digest=$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].digest // empty' "$api")
-    [[ $asset_size == $(field "$LOCK_FILE" ASSET_SIZE) ]]
-    [[ -z $asset_digest || $asset_digest == sha256:$(field "$LOCK_FILE" ASSET_SHA256) ]]
+    release_asset_matches_lock "$api" "$LOCK_FILE"
     git ls-remote https://github.com/fiatjaf/pyramid.git "refs/tags/$tag" "refs/tags/$tag^{}" > "$refs"
     commit=$(awk -v peeled="refs/tags/$tag^{}" '$2 == peeled {print $1}' "$refs")
     [[ -n $commit ]] || commit=$(awk -v direct="refs/tags/$tag" '$2 == direct {print $1}' "$refs")
@@ -145,7 +152,7 @@ audit_current() {
 }
 
 self_test() {
-  local tmp fixture fake source active mutation_index=0
+  local tmp fixture fake source active release_api asset_name asset_size asset_sha mutation_index=0
   active=$(journal_context)
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/verify-pyramid.XXXXXX")
   chmod 0700 -- "$tmp"
@@ -170,6 +177,19 @@ self_test() {
   if validate_file "$fake" "$(field "$LOCK_FILE" ASSET_SIZE)" "$(field "$LOCK_FILE" ASSET_SHA256)"; then
     die 'invalid artifact accepted'
   fi
+  release_api=$tmp/release.json
+  asset_name=$(field "$fixture" ASSET_NAME)
+  asset_size=$(field "$fixture" ASSET_SIZE)
+  asset_sha=$(field "$fixture" ASSET_SHA256)
+  jq -n --arg name "$asset_name" --argjson size "$asset_size" \
+    '{assets: [{name: $name, size: $size}]}' > "$release_api"
+  if release_asset_matches_lock "$release_api" "$fixture"; then die 'missing release digest accepted'; fi
+  jq -n --arg name "$asset_name" --argjson size "$asset_size" \
+    '{assets: [{name: $name, size: $size, digest: "sha256:wrong"}]}' > "$release_api"
+  if release_asset_matches_lock "$release_api" "$fixture"; then die 'wrong release digest accepted'; fi
+  jq -n --arg name "$asset_name" --argjson size "$asset_size" --arg digest "sha256:$asset_sha" \
+    '{assets: [{name: $name, size: $size, digest: $digest}]}' > "$release_api"
+  release_asset_matches_lock "$release_api" "$fixture" || die 'matching release digest rejected'
   source=$tmp/source
   mkdir -p "$source"
   git -C "$source" init -q

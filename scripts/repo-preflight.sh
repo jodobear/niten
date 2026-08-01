@@ -49,10 +49,14 @@ scan_content() {
 }
 
 scan_tracked() {
-  local file
+  local file content
   while IFS= read -r -d '' file; do
-    [[ -f $ROOT/$file ]] || continue
-    scan_content tracked "$file" "$ROOT/$file"
+    content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-tracked.XXXXXX")
+    chmod 0600 -- "$content"
+    if git -C "$ROOT" show ":$file" > "$content" 2>/dev/null; then
+      scan_content tracked "$file" "$content"
+    fi
+    rm -f -- "$content"
   done < <(git -C "$ROOT" ls-files -z)
 }
 
@@ -99,6 +103,14 @@ self_test() {
   fi
   grep -q 'staged:seeded.txt: nostr-private-key' "$output" || usage_error 'sensitive-shape diagnostic missing'
   if grep -Fq "$fake_nsec" "$output"; then usage_error 'diagnostic exposed matched value'; fi
+  git -C "$secret_repo" commit -qm seeded-secret
+  printf '%s\n' 'benign worktree replacement' > "$secret_repo/seeded.txt"
+  output=$tmp/tracked-output
+  if PREFLIGHT_REPO="$secret_repo" env -u NITEN_PRIVATE_JOURNAL -u NITEN_PRIVATE_ADDRESS -u NITEN_ROSTER_PATH "$0" --tracked 2> "$output"; then
+    usage_error 'tracked blob hidden by worktree replacement was not detected'
+  fi
+  grep -q 'tracked:seeded.txt: nostr-private-key' "$output" || usage_error 'tracked-blob diagnostic missing'
+  if grep -Fq "$fake_nsec" "$output"; then usage_error 'tracked diagnostic exposed matched value'; fi
 
   exact_repo=$tmp/exact
   make_repo "$exact_repo"
