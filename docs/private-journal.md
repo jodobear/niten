@@ -45,7 +45,16 @@ install -d -m 0700 -- "$journal_candidate"
 journal_root=$(realpath -e -- "$journal_candidate")
 repo_root=$(realpath -e -- "$(git rev-parse --show-toplevel)")
 [[ $journal_root != "$repo_root" && $journal_root != "$repo_root/"* ]]
-[[ $(git -C "$journal_root" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]]
+if journal_git=$(env -u GIT_DIR -u GIT_WORK_TREE git -c safe.directory='*' -C "$journal_root" rev-parse --is-inside-work-tree 2>/dev/null); then
+  [[ $journal_git != true ]]
+else
+  journal_cursor=$journal_root
+  while :; do
+    [[ ! -e $journal_cursor/.git && ! -L $journal_cursor/.git ]]
+    [[ $journal_cursor != / ]] || break
+    journal_cursor=$(dirname -- "$journal_cursor")
+  done
+fi
 journal_utc=$(date -u +%Y-%m-%dT%H%M%SZ)
 run_parent="$journal_root/${journal_utc%%T*}"
 install -d -m 0700 -- "$run_parent"

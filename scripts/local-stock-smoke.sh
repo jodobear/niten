@@ -157,9 +157,6 @@ if [[ -z $ASSET ]]; then
   curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
     --output "$ASSET" "$(field ASSET_URL)" > "$RAW/download.txt" 2>&1
 fi
-prepare_private_file "$RAW/verify.txt"
-"$ROOT/scripts/verify-pyramid.sh" --asset "$ASSET" > "$RAW/verify.txt" 2>&1 || die 'official asset verification failed'
-
 STATE=$(mktemp -d "${TMPDIR:-/tmp}/niten-stock-smoke.XXXXXX")
 chmod 0700 -- "$STATE"
 : > "$STATE/.niten-smoke-state"
@@ -169,6 +166,8 @@ state_real=$(realpath -e -- "$STATE")
 [[ $state_real != "$repo_real" && $state_real != "$repo_real/"* ]] || die 'temporary state entered repository'
 cp -- "$ASSET" "$STATE/pyramid"
 chmod 0700 -- "$STATE/pyramid"
+prepare_private_file "$RAW/verify.txt"
+"$ROOT/scripts/verify-pyramid.sh" --asset "$STATE/pyramid" > "$RAW/verify.txt" 2>&1 || die 'private asset copy verification failed'
 PORT=$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
 
 start_pyramid() {

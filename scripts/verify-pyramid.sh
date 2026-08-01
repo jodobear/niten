@@ -271,7 +271,7 @@ audit_current() {
 reproduce_source() {
   local active=$1 source=$2 capture work context containerfile output runtime build_log result_file artifact
   local image_id_file image_id image_tag container_id=
-  local node_version npm_version go_version musl_version templ_version tag built_size built_sha official_sha comparison runtime_version
+  local node_version npm_version go_version musl_version templ_version tag commit built_size built_sha official_sha comparison runtime_version
   capture=$(build_context "$active")
   CAPTURE_LABELS+=("raw/build/${capture##*/}")
   build_log=$capture/build.txt
@@ -285,7 +285,9 @@ reproduce_source() {
   image_id_file=$work/image-id
   mkdir -p -- "$context" "$output"
   chmod 0700 -- "$context" "$output"
-  if ! git -C "$source" archive --format=tar HEAD | tar -xf - -C "$context"; then
+  commit=$(field "$LOCK_FILE" COMMIT)
+  git -C "$source" cat-file -e "$commit^{commit}" 2>/dev/null || { rm -rf -- "$work"; die 'locked source commit unavailable'; }
+  if ! git -C "$source" archive --format=tar "$commit" | tar -xf - -C "$context"; then
     rm -rf -- "$work"
     die 'source export failed'
   fi
