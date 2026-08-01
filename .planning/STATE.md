@@ -5,15 +5,15 @@ milestone_name: milestone
 current_phase: 1
 current_phase_name: Stock Pyramid Discovery Pilot
 status: executing
-stopped_at: Phase 1 context gathered
-last_updated: "2026-07-31T11:08:15.470Z"
+stopped_at: Completed 01-01-PLAN.md
+last_updated: "2026-07-31T12:12:29.148Z"
 last_activity: 2026-07-31
-last_activity_desc: Roadmap created with all 89 v1 requirements mapped exactly once
+last_activity_desc: Phase 1 execution started
 progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 9
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 # Project State
@@ -27,12 +27,12 @@ See: .planning/PROJECT.md (updated 2026-07-31)
 
 ## Current Position
 
-Phase: 1 of 5 (Stock Pyramid Discovery Pilot)
-Plan: 0 of TBD in current phase
+Phase: 1 (Stock Pyramid Discovery Pilot) — EXECUTING
+Plan: 2 of 9
 Status: Ready to execute
-Last activity: 2026-07-31 — Roadmap created with all 89 v1 requirements mapped exactly once
+Last activity: 2026-07-31 — Phase 1 execution started
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 11%
 
 ## Performance Metrics
 
@@ -54,6 +54,11 @@ Progress: [░░░░░░░░░░] 0%
 - Trend: No execution data
 
 *Updated after each plan completion*
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P01 | 37 min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -65,6 +70,10 @@ Decisions are logged in PROJECT.md Key Decisions table.
 - [Phase 1]: No companion services or Pyramid patches before retained discovery evidence reaches the hard decision gate.
 - [Roadmap]: Keep every client-facing surface replaceable and non-authoritative; Pyramid owns community authority.
 - [Roadmap]: Hosted headless-applet architecture is excluded from this project.
+- [Phase 01]: Retain stock Pyramid v1.3.2 at the exact current official release commit and digest. — Discovery must execute the exact verified official subject.
+- [Phase 01]: Keep the exact-stock local tracer on loopback WS; the later Caddy envelope owns WSS. — Stock Pyramid has no local TLS listener and the tracer admits no companion proxy.
+- [Phase 01]: Treat the source-reproduction checksum difference as provenance evidence, never substitution permission. — Only the verified official asset is the selected discovery subject.
+- [Phase 01]: Map callable selected-pin NIP-86 methods to INTEGRATE; keep unregistered official methods as OPT-OUT. — Coverage must match the selected runtime without invoking unsupported methods.
 
 ### Pending Todos
 
@@ -86,6 +95,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-07-31T00:50:20.045Z
-Stopped at: Phase 1 context gathered
-Resume file: .planning/phases/01-stock-pyramid-discovery-pilot/01-CONTEXT.md
+Last session: 2026-07-31T12:12:29.141Z
+Stopped at: Completed 01-01-PLAN.md
+Resume file: None

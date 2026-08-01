@@ -27,12 +27,12 @@ Delivery begins with a bounded, source-unmodified stock-Pyramid discovery pilot.
   4. Membership, invitations, group privacy modes, roles, NIP-42, NIP-50, conversation, deletion, reconnect, rejection, and destination behavior have retained pass/fail captures plus participant feedback in the private build journal.
   5. A documented review classifies each finding and makes a hard proceed, revise, replace, or stop decision; no hosted client, standalone media, federation, curation, companion API, or Pyramid patch is assumed before that decision.
 
-**Plans**: 9 plans
+**Plans**: 1/9 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 01-01-PLAN.md — Start private journal first; revalidate, build, and locally trace exact stock Pyramid; record simple NIP-86 coverage
+- [x] 01-01-PLAN.md — Start private journal first; revalidate, build, and locally trace exact stock Pyramid; record simple NIP-86 coverage
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -133,7 +133,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Stock Pyramid Discovery Pilot | 0/9 | Not started | - |
+| 1. Stock Pyramid Discovery Pilot | 1/9 | In Progress|  |
 | 2. Production Authority and Governance | 0/TBD | Not started | - |
 | 3. Core Community Experience | 0/TBD | Not started | - |
 | 4. Media, Federation, and Public Launch | 0/TBD | Not started | - |

@@ -1,0 +1,4 @@
+# Operator-local private evidence roots. Runtime value must still live outside Git.
+/.niten-private/
+/niten-private-journal/
+/niten-pilot/
