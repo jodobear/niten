@@ -17,6 +17,7 @@ host, roster, or live-client command:
 
 ```text
 $NITEN_PRIVATE_JOURNAL/
+├── .active-run
 └── YYYY-MM-DD/
     └── YYYYMMDDTHHMMSSZ-purpose/
         ├── journal.md
@@ -29,6 +30,20 @@ $NITEN_PRIVATE_JOURNAL/
             ├── restore/
             ├── incidents/
             └── feedback/
+```
+
+Create `.active-run` as a mode-`0600` regular file containing only the
+canonical absolute path of the current run directory. It must not be a symlink,
+and its resolved target must remain beneath the canonical journal root:
+
+```bash
+umask 0077
+journal_root=$(realpath -e -- "$NITEN_PRIVATE_JOURNAL")
+run_dir="$journal_root/$(date -u +%Y-%m-%d)/$(date -u +%Y%m%dT%H%M%SZ)-discovery"
+install -d -m 0700 -- "$run_dir/raw/"{audit,build,tracer,nip86,operations,restore,incidents,feedback}
+install -m 0600 /dev/null "$run_dir/journal.md"
+printf '%s\n' "$(realpath -e -- "$run_dir")" > "$journal_root/.active-run"
+chmod 0600 -- "$journal_root/.active-run"
 ```
 
 Append the intent before each command. Append actual result, exit status, and a

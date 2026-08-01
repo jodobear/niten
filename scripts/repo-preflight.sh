@@ -58,6 +58,28 @@ scan_tracked() {
     fi
     rm -f -- "$content"
   done < <(git -C "$ROOT" ls-files -z)
+
+  scan_history
+}
+
+scan_history() {
+  local record oid='' file type content short_oid
+  while IFS= read -r -d '' record; do
+    if [[ $record != path=* ]]; then
+      oid=$record
+      continue
+    fi
+    [[ -n $oid ]] || continue
+    file=${record#path=}
+    type=$(git -C "$ROOT" cat-file -t "$oid")
+    [[ $type == blob ]] || continue
+    content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-history.XXXXXX")
+    chmod 0600 -- "$content"
+    git -C "$ROOT" cat-file blob "$oid" > "$content"
+    short_oid=${oid:0:12}
+    scan_content "history@$short_oid" "$file" "$content"
+    rm -f -- "$content"
+  done < <(git -C "$ROOT" rev-list --objects --all -z)
 }
 
 scan_staged() {
@@ -111,6 +133,14 @@ self_test() {
   fi
   grep -q 'tracked:seeded.txt: nostr-private-key' "$output" || usage_error 'tracked-blob diagnostic missing'
   if grep -Fq "$fake_nsec" "$output"; then usage_error 'tracked diagnostic exposed matched value'; fi
+  git -C "$secret_repo" add seeded.txt
+  git -C "$secret_repo" commit -qm remove-secret
+  output=$tmp/history-output
+  if PREFLIGHT_REPO="$secret_repo" env -u NITEN_PRIVATE_JOURNAL -u NITEN_PRIVATE_ADDRESS -u NITEN_ROSTER_PATH "$0" --tracked 2> "$output"; then
+    usage_error 'reachable historical secret blob was not detected'
+  fi
+  grep -Eq 'history@[0-9a-f]{12}:seeded.txt: nostr-private-key' "$output" || usage_error 'history diagnostic missing'
+  if grep -Fq "$fake_nsec" "$output"; then usage_error 'history diagnostic exposed matched value'; fi
 
   exact_repo=$tmp/exact
   make_repo "$exact_repo"

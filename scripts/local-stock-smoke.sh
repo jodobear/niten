@@ -35,10 +35,22 @@ journal_context() {
   printf '%s' "$active_real"
 }
 
+capture_context() {
+  local active=$1 raw_root capture raw_real capture_real
+  raw_root=$active/raw
+  capture=$raw_root/tracer
+  [[ ! -L $raw_root && ! -L $capture ]] || die 'private capture path must not use symlinks'
+  mkdir -p -- "$capture"
+  [[ -d $raw_root && -d $capture && ! -L $raw_root && ! -L $capture ]] || die 'private capture path invalid'
+  raw_real=$(realpath -e -- "$raw_root") || die 'private raw capture root unresolved'
+  capture_real=$(realpath -e -- "$capture") || die 'private tracer capture unresolved'
+  [[ $raw_real == "$active/raw" && $capture_real == "$raw_real/tracer" ]] || die 'private capture path escaped active run'
+  chmod 0700 -- "$raw_real" "$capture_real"
+  printf '%s' "$capture_real"
+}
+
 ACTIVE=$(journal_context)
-RAW="$ACTIVE/raw/tracer"
-mkdir -p -- "$RAW"
-chmod 0700 -- "$RAW"
+RAW=$(capture_context "$ACTIVE")
 printf '\n## Command entry\n- UTC: %s\n- Purpose: disposable exact-stock loopback NIP-11 and WebSocket tracer\n- Expected: verified official asset, loopback-only listener, protocol response, clean shutdown\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$ACTIVE/journal.md"
 
@@ -63,7 +75,17 @@ cleanup() {
   if [[ -n ${STATE:-} && -d $STATE && -f $STATE/.niten-smoke-state ]]; then rm -rf -- "$STATE"; fi
   return "$rc"
 }
-trap cleanup EXIT INT TERM HUP
+
+on_signal() {
+  local status=$1
+  trap - INT TERM HUP
+  exit "$status"
+}
+
+trap cleanup EXIT
+trap 'on_signal 130' INT
+trap 'on_signal 143' TERM
+trap 'on_signal 129' HUP
 
 ASSET=${PYRAMID_ASSET:-}
 if [[ -z $ASSET && -f $ACTIVE/raw/audit/downloads/$(field ASSET_NAME) ]]; then
