@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 0077
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
   printf '%s\n' 'verify-pyramid: repository unavailable' >&2
@@ -105,20 +106,53 @@ journal_context() {
   repo_real=$(realpath -e -- "$ROOT") || die 'repository path unresolved'
   journal_real=$(realpath -e -- "$journal") || die 'private journal path unresolved'
   [[ $journal_real != "$repo_real" && $journal_real != "$repo_real/"* ]] || die 'private journal must be outside repository'
+  [[ $(git -C "$journal_real" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]] || \
+    die 'private journal must be outside every Git worktree'
   [[ $(stat -c '%a' -- "$journal_real") == 700 ]] || die 'private journal root mode must be 0700'
   [[ -f $journal_real/.active-run && ! -L $journal_real/.active-run ]] || die 'private journal active run missing'
   active=$(cat "$journal_real/.active-run")
   [[ $active == /* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
   active_real=$(realpath -e -- "$active") || die 'private journal active run unresolved'
   [[ $active_real == "$journal_real/"* ]] || die 'private journal active run escaped root'
+  [[ $(git -C "$active_real" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]] || \
+    die 'private journal active run must be outside every Git worktree'
   printf '%s' "$active_real"
 }
 
+prepare_private_file() {
+  local active=$1 path=$2 parent parent_real
+  parent=$(dirname -- "$path")
+  parent_real=$(realpath -e -- "$parent") || die 'private evidence parent unresolved'
+  [[ $parent_real == "$active" || $parent_real == "$active/"* ]] || die 'private evidence file escaped active run'
+  [[ ! -L $path ]] || die 'private evidence file must not be a symlink'
+  if [[ -e $path ]]; then
+    [[ -f $path ]] || die 'private evidence destination is not a regular file'
+  else
+    (set -C; : > "$path") 2>/dev/null || die 'private evidence file creation failed'
+  fi
+  chmod 0600 -- "$path"
+}
+
+audit_context() {
+  local active=$1 raw audit raw_real audit_real
+  raw=$active/raw
+  audit=$raw/audit
+  [[ ! -L $raw && ! -L $audit ]] || die 'private audit path must not use symlinks'
+  mkdir -p -- "$audit"
+  [[ -d $raw && -d $audit && ! -L $raw && ! -L $audit ]] || die 'private audit path invalid'
+  raw_real=$(realpath -e -- "$raw") || die 'private raw audit root unresolved'
+  audit_real=$(realpath -e -- "$audit") || die 'private audit capture root unresolved'
+  [[ $raw_real == "$active/raw" && $audit_real == "$raw_real/audit" ]] || die 'private audit path escaped active run'
+  chmod 0700 -- "$raw_real" "$audit_real"
+  printf '%s' "$audit_real"
+}
+
 record_result() {
-  local active=$1 purpose=$2 result=$3
+  local active=$1 purpose=$2 result=$3 journal
+  journal=$active/journal.md
+  prepare_private_file "$active" "$journal"
   printf '\n## Command entry\n- UTC: %s\n- Purpose: %s\n- Result: %s\n- Raw capture: private audit capture\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$purpose" "$result" >> "$active/journal.md"
-  chmod 0600 -- "$active/journal.md"
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$purpose" "$result" >> "$journal"
 }
 
 release_asset_matches_lock() {
@@ -131,10 +165,12 @@ release_asset_matches_lock() {
 }
 
 audit_current() {
-  local active=$1 capture api tag commit refs
-  capture="$active/raw/audit/verify-current-$(date -u +%Y%m%dT%H%M%SZ).txt"
-  api=$(mktemp "$active/raw/audit/release.XXXXXX.json")
-  refs=$(mktemp "$active/raw/audit/refs.XXXXXX.txt")
+  local active=$1 audit capture api tag commit refs
+  audit=$(audit_context "$active")
+  capture="$audit/verify-current-$(date -u +%Y%m%dT%H%M%SZ).txt"
+  prepare_private_file "$active" "$capture"
+  api=$(mktemp "$audit/release.XXXXXX.json")
+  refs=$(mktemp "$audit/refs.XXXXXX.txt")
   chmod 0600 -- "$api" "$refs"
   {
     curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \

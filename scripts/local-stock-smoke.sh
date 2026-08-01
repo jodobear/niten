@@ -27,12 +27,16 @@ journal_context() {
   repo_real=$(realpath -e -- "$ROOT") || die 'repository path unresolved'
   journal_real=$(realpath -e -- "$journal") || die 'private journal path unresolved'
   [[ $journal_real != "$repo_real" && $journal_real != "$repo_real/"* ]] || die 'private journal must be outside repository'
+  [[ $(git -C "$journal_real" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]] || \
+    die 'private journal must be outside every Git worktree'
   [[ $(stat -c '%a' -- "$journal_real") == 700 ]] || die 'private journal root mode must be 0700'
   [[ -f $journal_real/.active-run && ! -L $journal_real/.active-run ]] || die 'private journal active run missing'
   active=$(cat "$journal_real/.active-run")
   [[ $active == /* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
   active_real=$(realpath -e -- "$active") || die 'private journal active run unresolved'
   [[ $active_real == "$journal_real/"* ]] || die 'private journal active run escaped root'
+  [[ $(git -C "$active_real" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]] || \
+    die 'private journal active run must be outside every Git worktree'
   printf '%s' "$active_real"
 }
 
