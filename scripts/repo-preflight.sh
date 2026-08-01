@@ -9,6 +9,10 @@ if [[ -z $ROOT ]]; then
   }
 fi
 ROOT=$(realpath -e -- "$ROOT")
+git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || {
+  printf '%s\n' 'repo-preflight: repository unavailable' >&2
+  exit 2
+}
 CHECK_TRACKED=false
 CHECK_STAGED=false
 SELF_TEST=false
@@ -49,44 +53,81 @@ scan_content() {
 }
 
 scan_tracked() {
-  local file content
+  local file content files scan_error=
+  files=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-tracked-files.XXXXXX")
+  chmod 0600 -- "$files"
+  if ! git -C "$ROOT" ls-files -z > "$files" 2>/dev/null; then
+    rm -f -- "$files"
+    usage_error 'tracked file enumeration failed'
+  fi
   while IFS= read -r -d '' file; do
     content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-tracked.XXXXXX")
     chmod 0600 -- "$content"
-    if git -C "$ROOT" show ":$file" > "$content" 2>/dev/null; then
-      scan_content tracked "$file" "$content"
+    if ! git -C "$ROOT" show ":$file" > "$content" 2>/dev/null; then
+      rm -f -- "$content"
+      scan_error='tracked blob read failed'
+      break
     fi
+    scan_content tracked "$file" "$content"
     rm -f -- "$content"
-  done < <(git -C "$ROOT" ls-files -z)
+  done < "$files"
+  rm -f -- "$files"
+  [[ -z $scan_error ]] || usage_error "$scan_error"
 
   scan_history
 }
 
 scan_history() {
-  local oid file type content short_oid
+  local oid file type content short_oid objects scan_error=
+  objects=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-history-objects.XXXXXX")
+  chmod 0600 -- "$objects"
+  if ! git -C "$ROOT" rev-list --objects --all > "$objects" 2>/dev/null; then
+    rm -f -- "$objects"
+    usage_error 'reachable object enumeration failed'
+  fi
   while IFS=' ' read -r oid file; do
     [[ -n $file ]] || continue
-    type=$(git -C "$ROOT" cat-file -t "$oid")
+    if ! type=$(git -C "$ROOT" cat-file -t "$oid" 2>/dev/null); then
+      scan_error='reachable object type read failed'
+      break
+    fi
     [[ $type == blob ]] || continue
     content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-history.XXXXXX")
     chmod 0600 -- "$content"
-    git -C "$ROOT" cat-file blob "$oid" > "$content"
+    if ! git -C "$ROOT" cat-file blob "$oid" > "$content" 2>/dev/null; then
+      rm -f -- "$content"
+      scan_error='reachable blob read failed'
+      break
+    fi
     short_oid=${oid:0:12}
     scan_content "history@$short_oid" "$file" "$content"
     rm -f -- "$content"
-  done < <(git -C "$ROOT" rev-list --objects --all)
+  done < "$objects"
+  rm -f -- "$objects"
+  [[ -z $scan_error ]] || usage_error "$scan_error"
 }
 
 scan_staged() {
-  local file content
+  local file content files scan_error=
+  files=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-staged-files.XXXXXX")
+  chmod 0600 -- "$files"
+  if ! git -C "$ROOT" diff --cached --name-only --diff-filter=ACMR -z > "$files" 2>/dev/null; then
+    rm -f -- "$files"
+    usage_error 'staged file enumeration failed'
+  fi
   while IFS= read -r -d '' file; do
     content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-index.XXXXXX")
     chmod 0600 -- "$content"
-    if git -C "$ROOT" show ":$file" > "$content" 2>/dev/null; then
-      scan_content staged "$file" "$content"
+    if ! git -C "$ROOT" show ":$file" > "$content" 2>/dev/null; then
+      rm -f -- "$content"
+      scan_error='staged blob read failed'
+      break
     fi
+    scan_content staged "$file" "$content"
     rm -f -- "$content"
-  done < <(git -C "$ROOT" diff --cached --name-only --diff-filter=ACMR -z)
+  done < "$files"
+  rm -f -- "$files"
+  [[ -z $scan_error ]] || usage_error "$scan_error"
 }
 
 make_repo() {
@@ -98,7 +139,7 @@ make_repo() {
 }
 
 self_test() {
-  local tmp safe_repo secret_repo exact_repo output fake_nsec protected
+  local tmp safe_repo secret_repo exact_repo invalid_repo output fake_nsec protected
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/repo-preflight.XXXXXX")
   chmod 0700 -- "$tmp"
   trap 'rm -rf -- "$tmp"' RETURN
@@ -148,6 +189,21 @@ self_test() {
   fi
   grep -q 'staged:path.txt: protected-journal-value' "$output" || usage_error 'protected-value diagnostic missing'
   if grep -Fq "$protected" "$output"; then usage_error 'diagnostic exposed protected value'; fi
+
+  invalid_repo=$tmp/not-a-repository
+  mkdir -p "$invalid_repo"
+  output=$tmp/invalid-output
+  if PREFLIGHT_REPO="$invalid_repo" "$0" --tracked 2> "$output"; then
+    usage_error 'non-repository scan unexpectedly passed'
+  fi
+  grep -q 'repository unavailable' "$output" || usage_error 'repository failure diagnostic missing'
+
+  printf '%040d\n' 1 > "$safe_repo/.git/refs/heads/broken"
+  output=$tmp/bad-ref-output
+  if PREFLIGHT_REPO="$safe_repo" "$0" --tracked 2> "$output"; then
+    usage_error 'failed Git history producer unexpectedly passed'
+  fi
+  grep -q 'reachable object enumeration failed' "$output" || usage_error 'Git producer failure diagnostic missing'
   printf '%s\n' 'repo-preflight self-test: PASS'
 }
 

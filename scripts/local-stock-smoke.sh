@@ -78,6 +78,20 @@ printf '\n## Command entry\n- UTC: %s\n- Purpose: disposable exact-stock loopbac
 STATE=
 PID=
 PORT=
+SMOKE_RECORDED=false
+
+record_failure() {
+  local status=$1 parent_real
+  [[ -f $JOURNAL && ! -L $JOURNAL ]] || return 0
+  parent_real=$(realpath -e -- "$(dirname -- "$JOURNAL")") || return 0
+  [[ $parent_real == "$ACTIVE" ]] || return 0
+  printf '%s\n' \
+    "- Actual: stock smoke exited with status $status; cleanup attempted" \
+    '- Result: FAIL' \
+    '- Raw capture: private tracer captures' >> "$JOURNAL" || true
+  chmod 0600 -- "$JOURNAL" 2>/dev/null || true
+}
+
 cleanup() {
   local rc=$?
   if [[ -n ${PID:-} ]] && kill -0 "$PID" 2>/dev/null; then
@@ -94,6 +108,7 @@ cleanup() {
     done
   fi
   if [[ -n ${STATE:-} && -d $STATE && -f $STATE/.niten-smoke-state ]]; then rm -rf -- "$STATE"; fi
+  if ((rc != 0)) && [[ $SMOKE_RECORDED == false ]]; then record_failure "$rc"; fi
   return "$rc"
 }
 
@@ -252,6 +267,7 @@ done
 ss -H -ltn "sport = :$PORT" 2>/dev/null | grep -q . && die 'listener remained after shutdown'
 printf '%s\n' "- Actual: verified stock asset returned NIP-11 and REQ/EOSE on loopback; process and marked state cleaned" \
   "- Result: PASS" "- Raw capture: private tracer captures" >> "$JOURNAL"
+SMOKE_RECORDED=true
 if [[ $SELF_TEST == true ]]; then
   printf '%s\n' 'local-stock-smoke self-test: PASS'
 else

@@ -85,9 +85,19 @@ validate_file() {
   [[ $actual_sha == "$expected_sha" ]]
 }
 
+is_worktree_root() {
+  local dir=$1 dir_real top top_real
+  [[ -d $dir ]] || return 1
+  [[ $(git -C "$dir" rev-parse --is-inside-work-tree 2>/dev/null) == true ]] || return 1
+  dir_real=$(realpath -e -- "$dir") || return 1
+  top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 1
+  top_real=$(realpath -e -- "$top") || return 1
+  [[ $top_real == "$dir_real" ]]
+}
+
 validate_source() {
   local dir=$1 repo tag commit source_remote
-  [[ -d $dir/.git ]] || return 1
+  is_worktree_root "$dir" || return 1
   repo=$(field "$LOCK_FILE" REPOSITORY)
   tag=$(field "$LOCK_FILE" TAG)
   commit=$(field "$LOCK_FILE" COMMIT)
@@ -188,7 +198,7 @@ audit_current() {
 }
 
 self_test() {
-  local tmp fixture fake source active release_api asset_name asset_size asset_sha mutation_index=0
+  local tmp fixture fake source linked active release_api asset_name asset_size asset_sha mutation_index=0
   active=$(journal_context)
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/verify-pyramid.XXXXXX")
   chmod 0700 -- "$tmp"
@@ -234,6 +244,9 @@ self_test() {
   printf clean > "$source/file"
   git -C "$source" add file
   git -C "$source" commit -qm initial
+  linked=$tmp/linked-source
+  git -C "$source" worktree add -qb linked-self-test "$linked"
+  is_worktree_root "$linked" || die 'linked Git worktree rejected'
   [[ -z $(git -C "$source" status --porcelain --untracked-files=all) ]] || die 'clean source rejected'
   printf dirty >> "$source/file"
   if [[ -z $(git -C "$source" status --porcelain --untracked-files=all) ]]; then die 'dirty source accepted'; fi
