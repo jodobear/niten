@@ -86,12 +86,13 @@ scan_history() {
     usage_error 'reachable object enumeration failed'
   fi
   while IFS=' ' read -r oid file; do
-    [[ -n $file ]] || continue
     if ! type=$(git -C "$ROOT" cat-file -t "$oid" 2>/dev/null); then
       scan_error='reachable object type read failed'
       break
     fi
     [[ $type == blob ]] || continue
+    short_oid=${oid:0:12}
+    [[ -n $file ]] || file="object-$short_oid"
     content=$(mktemp "${TMPDIR:-/tmp}/repo-preflight-history.XXXXXX")
     chmod 0600 -- "$content"
     if ! git -C "$ROOT" cat-file blob "$oid" > "$content" 2>/dev/null; then
@@ -99,7 +100,6 @@ scan_history() {
       scan_error='reachable blob read failed'
       break
     fi
-    short_oid=${oid:0:12}
     scan_content "history@$short_oid" "$file" "$content"
     rm -f -- "$content"
   done < "$objects"
@@ -139,7 +139,7 @@ make_repo() {
 }
 
 self_test() {
-  local tmp safe_repo secret_repo exact_repo invalid_repo output fake_nsec protected
+  local tmp safe_repo secret_repo blob_repo exact_repo invalid_repo output fake_nsec protected blob_oid blob_short
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/repo-preflight.XXXXXX")
   chmod 0700 -- "$tmp"
   trap 'rm -rf -- "$tmp"' RETURN
@@ -177,6 +177,18 @@ self_test() {
   fi
   grep -Eq 'history@[0-9a-f]{12}:seeded.txt: nostr-private-key' "$output" || usage_error 'history diagnostic missing'
   if grep -Fq "$fake_nsec" "$output"; then usage_error 'history diagnostic exposed matched value'; fi
+
+  blob_repo=$tmp/blob-ref
+  make_repo "$blob_repo"
+  blob_oid=$(printf '%s\n' "$fake_nsec" | git -C "$blob_repo" hash-object -w --stdin)
+  blob_short=${blob_oid:0:12}
+  git -C "$blob_repo" update-ref refs/tags/blobtag "$blob_oid"
+  output=$tmp/blob-ref-output
+  if PREFLIGHT_REPO="$blob_repo" env -u NITEN_PRIVATE_JOURNAL -u NITEN_PRIVATE_ADDRESS -u NITEN_ROSTER_PATH "$0" --tracked 2> "$output"; then
+    usage_error 'nameless reachable sensitive blob was not detected'
+  fi
+  grep -q "history@$blob_short:object-$blob_short: nostr-private-key" "$output" || usage_error 'nameless blob diagnostic missing'
+  if grep -Fq "$fake_nsec" "$output"; then usage_error 'nameless blob diagnostic exposed matched value'; fi
 
   exact_repo=$tmp/exact
   make_repo "$exact_repo"

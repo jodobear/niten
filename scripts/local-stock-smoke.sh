@@ -24,22 +24,34 @@ field() {
   awk -F= -v key="$key" '$1 == key { count++; value = substr($0, index($0, "=") + 1) } END { if (count != 1) exit 1; print value }' "$LOCK_FILE"
 }
 
+require_outside_worktree() {
+  local path=$1 label=$2 result cursor
+  if result=$(env -u GIT_DIR -u GIT_WORK_TREE git -c safe.directory='*' -C "$path" rev-parse --is-inside-work-tree 2>/dev/null); then
+    [[ $result != true ]] || die "$label must be outside every Git worktree"
+    return
+  fi
+  cursor=$path
+  while :; do
+    [[ ! -e $cursor/.git && ! -L $cursor/.git ]] || die "$label Git worktree inspection failed"
+    [[ $cursor != / ]] || break
+    cursor=$(dirname -- "$cursor")
+  done
+}
+
 journal_context() {
   local journal=${NITEN_PRIVATE_JOURNAL:-} repo_real journal_real active active_real
   [[ $journal == /* && -d $journal && ! -L $journal ]] || die 'private journal precondition failed'
   repo_real=$(realpath -e -- "$ROOT") || die 'repository path unresolved'
   journal_real=$(realpath -e -- "$journal") || die 'private journal path unresolved'
   [[ $journal_real != "$repo_real" && $journal_real != "$repo_real/"* ]] || die 'private journal must be outside repository'
-  [[ $(git -C "$journal_real" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]] || \
-    die 'private journal must be outside every Git worktree'
+  require_outside_worktree "$journal_real" 'private journal'
   [[ $(stat -c '%a' -- "$journal_real") == 700 ]] || die 'private journal root mode must be 0700'
   [[ -f $journal_real/.active-run && ! -L $journal_real/.active-run ]] || die 'private journal active run missing'
   active=$(cat "$journal_real/.active-run")
   [[ $active == /* && -d $active && ! -L $active ]] || die 'private journal active run invalid'
   active_real=$(realpath -e -- "$active") || die 'private journal active run unresolved'
   [[ $active_real == "$journal_real/"* ]] || die 'private journal active run escaped root'
-  [[ $(git -C "$active_real" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]] || \
-    die 'private journal active run must be outside every Git worktree'
+  require_outside_worktree "$active_real" 'private journal active run'
   printf '%s' "$active_real"
 }
 
