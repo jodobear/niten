@@ -62,6 +62,7 @@ prepare_private_file() {
   [[ ! -L $path ]] || die 'private capture file must not be a symlink'
   if [[ -e $path ]]; then
     [[ -f $path ]] || die 'private capture destination is not a regular file'
+    [[ $(stat -c '%h' -- "$path") == 1 ]] || die 'private capture file must not be hard-linked'
   else
     (set -C; : > "$path") 2>/dev/null || die 'private capture file creation failed'
   fi
@@ -83,6 +84,7 @@ SMOKE_RECORDED=false
 record_failure() {
   local status=$1 parent_real
   [[ -f $JOURNAL && ! -L $JOURNAL ]] || return 0
+  [[ $(stat -c '%h' -- "$JOURNAL" 2>/dev/null) == 1 ]] || return 0
   parent_real=$(realpath -e -- "$(dirname -- "$JOURNAL")") || return 0
   [[ $parent_real == "$ACTIVE" ]] || return 0
   printf '%s\n' \

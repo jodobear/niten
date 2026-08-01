@@ -137,6 +137,7 @@ prepare_private_file() {
   [[ ! -L $path ]] || die 'private evidence file must not be a symlink'
   if [[ -e $path ]]; then
     [[ -f $path ]] || die 'private evidence destination is not a regular file'
+    [[ $(stat -c '%h' -- "$path") == 1 ]] || die 'private evidence file must not be hard-linked'
   else
     (set -C; : > "$path") 2>/dev/null || die 'private evidence file creation failed'
   fi
@@ -157,12 +158,39 @@ audit_context() {
   printf '%s' "$audit_real"
 }
 
-record_result() {
-  local active=$1 purpose=$2 result=$3 journal
+record_intent() {
+  local active=$1 purpose=$2 journal
   journal=$active/journal.md
   prepare_private_file "$active" "$journal"
-  printf '\n## Command entry\n- UTC: %s\n- Purpose: %s\n- Result: %s\n- Raw capture: private audit capture\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$purpose" "$result" >> "$journal"
+  printf '\n## Command entry\n- UTC: %s\n- Purpose: %s\n- Expected: exact lock and every supplied provenance input validate\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$purpose" >> "$journal"
+}
+
+record_outcome() {
+  local active=$1 result=$2 actual=$3 journal
+  journal=$active/journal.md
+  prepare_private_file "$active" "$journal"
+  printf '%s\n' "- Actual: $actual" "- Result: $result" '- Raw capture: private audit capture' >> "$journal"
+}
+
+record_failure() {
+  local status=$1 journal parent_real
+  journal=$ACTIVE/journal.md
+  [[ -f $journal && ! -L $journal ]] || return 0
+  [[ $(stat -c '%h' -- "$journal" 2>/dev/null) == 1 ]] || return 0
+  parent_real=$(realpath -e -- "$(dirname -- "$journal")") || return 0
+  [[ $parent_real == "$ACTIVE" ]] || return 0
+  printf '%s\n' \
+    "- Actual: verification exited with status $status" \
+    '- Result: FAIL' \
+    '- Raw capture: private audit capture' >> "$journal" || true
+  chmod 0600 -- "$journal" 2>/dev/null || true
+}
+
+verification_exit() {
+  local rc=$?
+  if ((rc != 0)) && [[ $VERIFY_RECORDED == false ]]; then record_failure "$rc"; fi
+  return "$rc"
 }
 
 release_asset_matches_lock() {
@@ -198,8 +226,7 @@ audit_current() {
 }
 
 self_test() {
-  local tmp fixture fake source linked active release_api asset_name asset_size asset_sha mutation_index=0
-  active=$(journal_context)
+  local tmp fixture fake source linked release_api asset_name asset_size asset_sha mutation_index=0
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/verify-pyramid.XXXXXX")
   chmod 0700 -- "$tmp"
   trap 'rm -rf -- "$tmp"' RETURN
@@ -250,8 +277,6 @@ self_test() {
   [[ -z $(git -C "$source" status --porcelain --untracked-files=all) ]] || die 'clean source rejected'
   printf dirty >> "$source/file"
   if [[ -z $(git -C "$source" status --porcelain --untracked-files=all) ]]; then die 'dirty source accepted'; fi
-  record_result "$active" 'verify-pyramid self-test' PASS
-  printf '%s\n' 'verify-pyramid self-test: PASS'
 }
 
 while (($#)); do
@@ -266,12 +291,27 @@ while (($#)); do
   shift
 done
 
-validate_lock "$LOCK_FILE" || die 'lock validation failed'
-if [[ $MODE == self-test ]]; then self_test; exit 0; fi
 ACTIVE=$(journal_context)
+VERIFY_RECORDED=false
+if [[ $MODE == self-test ]]; then
+  VERIFY_PURPOSE='verify-pyramid self-test'
+else
+  VERIFY_PURPOSE='verify exact Pyramid lock and supplied inputs'
+fi
+record_intent "$ACTIVE" "$VERIFY_PURPOSE"
+trap verification_exit EXIT
+validate_lock "$LOCK_FILE" || die 'lock validation failed'
+if [[ $MODE == self-test ]]; then
+  self_test
+  record_outcome "$ACTIVE" PASS 'lock, artifact rejection, release digest, and Git worktree self-tests passed'
+  VERIFY_RECORDED=true
+  printf '%s\n' 'verify-pyramid self-test: PASS'
+  exit 0
+fi
 [[ -z $ASSET ]] || validate_file "$ASSET" "$(field "$LOCK_FILE" ASSET_SIZE)" "$(field "$LOCK_FILE" ASSET_SHA256)" || die 'artifact mismatch'
 [[ -z $SOURCE_ARCHIVE ]] || validate_file "$SOURCE_ARCHIVE" "$(field "$LOCK_FILE" SOURCE_ARCHIVE_SIZE)" "$(field "$LOCK_FILE" SOURCE_ARCHIVE_SHA256)" || die 'source archive mismatch'
 [[ -z $SOURCE_DIR ]] || validate_source "$SOURCE_DIR" || die 'source repository mismatch or dirty tree'
 [[ $AUDIT_CURRENT == false ]] || audit_current "$ACTIVE"
-record_result "$ACTIVE" 'verify exact Pyramid lock and supplied inputs' PASS
+record_outcome "$ACTIVE" PASS 'exact lock and every supplied provenance input validated'
+VERIFY_RECORDED=true
 printf '%s\n' 'verify-pyramid: PASS'

@@ -37,9 +37,17 @@ canonical absolute path of the current run directory. It must not be a symlink,
 and its resolved target must remain beneath the canonical journal root:
 
 ```bash
+set -euo pipefail
 umask 0077
-journal_root=$(realpath -e -- "$NITEN_PRIVATE_JOURNAL")
-run_dir="$journal_root/$(date -u +%Y-%m-%d)/$(date -u +%Y%m%dT%H%M%SZ)-discovery"
+journal_candidate=${NITEN_PRIVATE_JOURNAL:?set an absolute private journal path}
+[[ $journal_candidate == /* && ! -L $journal_candidate ]]
+install -d -m 0700 -- "$journal_candidate"
+journal_root=$(realpath -e -- "$journal_candidate")
+repo_root=$(realpath -e -- "$(git rev-parse --show-toplevel)")
+[[ $journal_root != "$repo_root" && $journal_root != "$repo_root/"* ]]
+[[ $(git -C "$journal_root" rev-parse --is-inside-work-tree 2>/dev/null || true) != true ]]
+journal_utc=$(date -u +%Y-%m-%dT%H%M%SZ)
+run_dir="$journal_root/${journal_utc%%T*}/${journal_utc//-/}-discovery"
 install -d -m 0700 -- "$run_dir/raw/"{audit,build,tracer,nip86,operations,restore,incidents,feedback}
 install -m 0600 /dev/null "$run_dir/journal.md"
 printf '%s\n' "$(realpath -e -- "$run_dir")" > "$journal_root/.active-run"
