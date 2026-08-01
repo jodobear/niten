@@ -8,8 +8,11 @@ ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
 }
 LOCK_FILE=${PYRAMID_LOCK_FILE:-"$ROOT/config/pyramid.lock"}
 SELF_TEST=false
-[[ ${1:-} != --self-test ]] || SELF_TEST=true
-[[ $# -le 1 ]] || { printf '%s\n' 'local-stock-smoke: unknown argument' >&2; exit 2; }
+case $# in
+  0) ;;
+  1) [[ $1 == --self-test ]] || { printf '%s\n' 'local-stock-smoke: unknown argument' >&2; exit 2; }; SELF_TEST=true ;;
+  *) printf '%s\n' 'local-stock-smoke: unknown argument' >&2; exit 2 ;;
+esac
 
 die() {
   printf 'local-stock-smoke: %s\n' "$1" >&2

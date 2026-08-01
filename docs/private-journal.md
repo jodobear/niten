@@ -70,6 +70,13 @@ Append the intent before each command. Append actual result, exit status, and a
 relative capture label immediately afterward. Do not rely on shell history as
 evidence. Raw stdout/stderr goes beside the journal, never into Git.
 
+`verify-pyramid.sh --source-dir PATH` requires Podman or Docker. It exports the
+validated clean tag, rebuilds it with the lock's exact Node, npm, Go, musl, and
+templ versions using the upstream build steps, records resolved dependencies
+and checksums privately, and removes its temporary image and container. A
+checksum difference is retained as an observation; it never authorizes replacing
+the official release asset.
+
 ## Minimum entry fields
 
 Each entry records:

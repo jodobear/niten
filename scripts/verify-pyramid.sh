@@ -12,6 +12,7 @@ ASSET=
 SOURCE_ARCHIVE=
 SOURCE_DIR=
 AUDIT_CURRENT=false
+CAPTURE_LABELS=()
 
 die() {
   printf 'verify-pyramid: %s\n' "$1" >&2
@@ -158,6 +159,24 @@ audit_context() {
   printf '%s' "$audit_real"
 }
 
+build_context() {
+  local active=$1 raw build capture raw_real build_real capture_real
+  raw=$active/raw
+  build=$raw/build
+  [[ ! -L $raw && ! -L $build ]] || die 'private build path must not use symlinks'
+  mkdir -p -- "$build"
+  [[ -d $raw && -d $build && ! -L $raw && ! -L $build ]] || die 'private build path invalid'
+  raw_real=$(realpath -e -- "$raw") || die 'private raw build root unresolved'
+  build_real=$(realpath -e -- "$build") || die 'private build capture root unresolved'
+  [[ $raw_real == "$active/raw" && $build_real == "$raw_real/build" ]] || die 'private build path escaped active run'
+  chmod 0700 -- "$raw_real" "$build_real"
+  capture=$(mktemp -d "$build_real/reproduce-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX") || die 'private build capture creation failed'
+  capture_real=$(realpath -e -- "$capture") || die 'private build capture unresolved'
+  [[ $capture_real == "$build_real/"* ]] || die 'private build capture escaped build root'
+  chmod 0700 -- "$capture_real"
+  printf '%s' "$capture_real"
+}
+
 record_intent() {
   local active=$1 purpose=$2 journal
   journal=$active/journal.md
@@ -166,24 +185,35 @@ record_intent() {
     "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$purpose" >> "$journal"
 }
 
+capture_labels() {
+  local label joined=
+  for label in "${CAPTURE_LABELS[@]}"; do
+    [[ -z $joined ]] || joined+=,
+    joined+=$label
+  done
+  printf '%s' "${joined:-none}"
+}
+
 record_outcome() {
-  local active=$1 result=$2 actual=$3 journal
+  local active=$1 result=$2 actual=$3 journal labels
   journal=$active/journal.md
   prepare_private_file "$active" "$journal"
-  printf '%s\n' "- Actual: $actual" "- Result: $result" '- Raw capture: private audit capture' >> "$journal"
+  labels=$(capture_labels)
+  printf '%s\n' "- Actual: $actual" "- Result: $result" "- Raw capture: private $labels" >> "$journal"
 }
 
 record_failure() {
-  local status=$1 journal parent_real
+  local status=$1 journal parent_real labels
   journal=$ACTIVE/journal.md
   [[ -f $journal && ! -L $journal ]] || return 0
   [[ $(stat -c '%h' -- "$journal" 2>/dev/null) == 1 ]] || return 0
   parent_real=$(realpath -e -- "$(dirname -- "$journal")") || return 0
   [[ $parent_real == "$ACTIVE" ]] || return 0
+  labels=$(capture_labels)
   printf '%s\n' \
     "- Actual: verification exited with status $status" \
     '- Result: FAIL' \
-    '- Raw capture: private audit capture' >> "$journal" || true
+    "- Raw capture: private $labels" >> "$journal" || true
   chmod 0600 -- "$journal" 2>/dev/null || true
 }
 
@@ -205,8 +235,9 @@ release_asset_matches_lock() {
 audit_current() {
   local active=$1 audit capture api tag commit refs
   audit=$(audit_context "$active")
-  capture="$audit/verify-current-$(date -u +%Y%m%dT%H%M%SZ).txt"
+  capture=$(mktemp "$audit/verify-current-$(date -u +%Y%m%dT%H%M%SZ).XXXXXX.txt")
   prepare_private_file "$active" "$capture"
+  CAPTURE_LABELS+=("raw/audit/${capture##*/}")
   api=$(mktemp "$audit/release.XXXXXX.json")
   refs=$(mktemp "$audit/refs.XXXXXX.txt")
   chmod 0600 -- "$api" "$refs"
@@ -223,6 +254,136 @@ audit_current() {
     printf 'current release, tag commit, asset size, and digest match lock\n'
   } > "$capture" 2>&1
   chmod 0600 -- "$capture"
+}
+
+reproduce_source() {
+  local active=$1 source=$2 capture work context containerfile output runtime build_log result_file artifact
+  local image_id_file image_id image_tag container_id=
+  local node_version npm_version go_version musl_version templ_version tag built_size built_sha official_sha comparison runtime_version
+  capture=$(build_context "$active")
+  CAPTURE_LABELS+=("raw/build/${capture##*/}")
+  build_log=$capture/build.txt
+  result_file=$capture/result.txt
+  prepare_private_file "$active" "$build_log"
+  prepare_private_file "$active" "$result_file"
+  work=$(mktemp -d "${TMPDIR:-/tmp}/niten-pyramid-reproduce.XXXXXX")
+  chmod 0700 -- "$work"
+  context=$work/context
+  output=$work/output
+  image_id_file=$work/image-id
+  mkdir -p -- "$context" "$output"
+  chmod 0700 -- "$context" "$output"
+  if ! git -C "$source" archive --format=tar HEAD | tar -xf - -C "$context"; then
+    rm -rf -- "$work"
+    die 'source export failed'
+  fi
+  containerfile=$context/Containerfile.niten-reproduce
+  (set -C; : > "$containerfile") 2>/dev/null || { rm -rf -- "$work"; die 'reproduction containerfile creation failed'; }
+  chmod 0600 -- "$containerfile"
+  node_version=$(field "$LOCK_FILE" NODE_VERSION)
+  npm_version=$(field "$LOCK_FILE" NPM_VERSION)
+  go_version=$(field "$LOCK_FILE" GO_VERSION)
+  musl_version=$(field "$LOCK_FILE" MUSL_VERSION)
+  templ_version=$(field "$LOCK_FILE" TEMPL_VERSION)
+  tag=$(field "$LOCK_FILE" TAG)
+  cat > "$containerfile" <<'CONTAINERFILE'
+ARG NODE_VERSION
+ARG GO_VERSION
+FROM node:${NODE_VERSION} AS tailwind-builder
+ARG NODE_VERSION
+ARG NPM_VERSION
+WORKDIR /app
+COPY package.json ./
+RUN test "$(node --version)" = "v${NODE_VERSION}" && \
+    npm install --global "npm@${NPM_VERSION}" && \
+    test "$(npm --version)" = "${NPM_VERSION}" && \
+    npm install && npm ls --all
+COPY . .
+RUN ./node_modules/.bin/tailwindcss -i base.css -o static/styles.css
+
+FROM golang:${GO_VERSION} AS builder
+ARG GO_VERSION
+ARG MUSL_VERSION
+ARG TEMPL_VERSION
+ARG VERSION
+RUN apt-get update && \
+    apt-get install -y musl-tools git curl && \
+    test "$(dpkg-query -W -f='${Version}' musl | cut -d- -f1)" = "${MUSL_VERSION}" && \
+    rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN test "$(go env GOVERSION)" = "go${GO_VERSION}" && \
+    go mod download && \
+    go install "github.com/a-h/templ/cmd/templ@v${TEMPL_VERSION}" && \
+    templ version && go list -m all
+COPY . .
+COPY --from=tailwind-builder /app/static ./static
+RUN templ generate && \
+    CC=musl-gcc CGO_ENABLED=1 GOARCH=amd64 GOOS=linux \
+    go build -tags=libsecp256k1 \
+      -ldflags="-X main.currentVersion=${VERSION} -linkmode external -extldflags \"-static\"" \
+      -o ./pyramid-exe
+
+FROM scratch AS export
+COPY --from=builder /app/pyramid-exe /pyramid-exe
+CONTAINERFILE
+  if [[ -n ${PYRAMID_CONTAINER_RUNTIME:-} ]]; then
+    runtime=$PYRAMID_CONTAINER_RUNTIME
+  elif command -v podman >/dev/null 2>&1; then
+    runtime=podman
+  elif command -v docker >/dev/null 2>&1; then
+    runtime=docker
+  else
+    rm -rf -- "$work"
+    die 'Podman or Docker required for pinned source reproduction'
+  fi
+  runtime_version=$("$runtime" --version)
+  image_tag="localhost/niten-pyramid-reproduce:$(date -u +%Y%m%d%H%M%S)-$$-$RANDOM"
+  if ! "$runtime" build --pull=always --no-cache --target export \
+    --iidfile "$image_id_file" --tag "$image_tag" \
+    --build-arg "NODE_VERSION=$node_version" \
+    --build-arg "NPM_VERSION=$npm_version" \
+    --build-arg "GO_VERSION=$go_version" \
+    --build-arg "MUSL_VERSION=$musl_version" \
+    --build-arg "TEMPL_VERSION=$templ_version" \
+    --build-arg "VERSION=$tag" \
+    --file "$containerfile" "$context" > "$build_log" 2>&1; then
+    rm -rf -- "$work"
+    die 'pinned source reproduction failed'
+  fi
+  image_id=$(cat "$image_id_file")
+  if ! container_id=$("$runtime" create "$image_id" /pyramid-exe --help); then
+    "$runtime" rmi "$image_tag" >> "$build_log" 2>&1 || true
+    rm -rf -- "$work"
+    die 'reproduction container creation failed'
+  fi
+  if ! "$runtime" cp "$container_id:/pyramid-exe" "$output/pyramid-exe" >> "$build_log" 2>&1; then
+    "$runtime" rm "$container_id" >> "$build_log" 2>&1 || true
+    "$runtime" rmi "$image_tag" >> "$build_log" 2>&1 || true
+    rm -rf -- "$work"
+    die 'reproduced artifact export failed'
+  fi
+  if ! "$runtime" rm "$container_id" >> "$build_log" 2>&1; then
+    "$runtime" rm -f "$container_id" >> "$build_log" 2>&1 || true
+    "$runtime" rmi "$image_tag" >> "$build_log" 2>&1 || true
+    rm -rf -- "$work"
+    die 'reproduction container cleanup failed'
+  fi
+  if ! "$runtime" rmi "$image_tag" >> "$build_log" 2>&1; then
+    rm -rf -- "$work"
+    die 'reproduction image cleanup failed'
+  fi
+  artifact=$output/pyramid-exe
+  [[ -f $artifact && ! -L $artifact ]] || { rm -rf -- "$work"; die 'reproduced artifact missing'; }
+  built_size=$(stat -c '%s' -- "$artifact")
+  built_sha=$(sha256sum -- "$artifact" | awk '{print $1}')
+  official_sha=$(field "$LOCK_FILE" ASSET_SHA256)
+  if [[ $built_sha == "$official_sha" ]]; then comparison=MATCH; else comparison=DIFFERENT_OBSERVATION; fi
+  printf 'runtime=%s\nruntime_version=%s\nnode=%s\nnpm=%s\ngo=%s\nmusl=%s\ntempl=%s\ntag=%s\nbuilt_size=%s\nbuilt_sha256=%s\nofficial_sha256=%s\ncomparison=%s\n' \
+    "$runtime" "$runtime_version" "$node_version" "$npm_version" "$go_version" "$musl_version" "$templ_version" "$tag" \
+    "$built_size" "$built_sha" "$official_sha" "$comparison" > "$result_file"
+  chmod 0600 -- "$build_log" "$result_file"
+  rm -rf -- "$work"
 }
 
 self_test() {
@@ -311,6 +472,7 @@ fi
 [[ -z $ASSET ]] || validate_file "$ASSET" "$(field "$LOCK_FILE" ASSET_SIZE)" "$(field "$LOCK_FILE" ASSET_SHA256)" || die 'artifact mismatch'
 [[ -z $SOURCE_ARCHIVE ]] || validate_file "$SOURCE_ARCHIVE" "$(field "$LOCK_FILE" SOURCE_ARCHIVE_SIZE)" "$(field "$LOCK_FILE" SOURCE_ARCHIVE_SHA256)" || die 'source archive mismatch'
 [[ -z $SOURCE_DIR ]] || validate_source "$SOURCE_DIR" || die 'source repository mismatch or dirty tree'
+[[ -z $SOURCE_DIR ]] || reproduce_source "$ACTIVE" "$SOURCE_DIR"
 [[ $AUDIT_CURRENT == false ]] || audit_current "$ACTIVE"
 record_outcome "$ACTIVE" PASS 'exact lock and every supplied provenance input validated'
 VERIFY_RECORDED=true
